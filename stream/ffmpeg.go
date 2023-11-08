@@ -2,6 +2,7 @@ package stream
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
@@ -45,6 +46,14 @@ func checkFFmpeg() error {
 
 // Generate segments
 func generateDASHFiles(cmp *composition) error {
+	// Check for no intersections
+	// between different compositions
+	if _, err := os.Stat(BaseDir + "/" + *cmp.name); err == nil {
+		return fmt.Errorf("dir with name %s already exists", *cmp.name)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("tried to check dir %s existance and failed with error %s", *cmp.name, err)
+	}
+
 	// set the limit for bitrate (crutch untill bitrateSwitching)
 	bitrate := 128000
 	if cmp.meta.bitrate < 128000 {
@@ -68,8 +77,8 @@ func generateDASHFiles(cmp *composition) error {
 		"-dash_segment_type", "mp4", //													container segments format
 		"-use_template", "1", //														use template instead of enumerate (shorter output)
 		"-use_timeline", "1", //														more information about timing for all segments
-		"-init_seg_name", *cmp.name+`-init-$RepresentationID$.$ext$`, //				template for initialization segment
-		"-media_seg_name", *cmp.name+`-chunk-$RepresentationID$-$Number%05d$.$ext$`, //	template for data segments
+		"-init_seg_name", *cmp.name+`/init-$RepresentationID$.$ext$`, //				template for initialization segment
+		"-media_seg_name", *cmp.name+`/chunk-$RepresentationID$-$Number%05d$.$ext$`, //	template for data segments
 		"-seg_duration", strconv.FormatFloat(cmp.segmentDuration, 'g', -1, 64), //		duration of each segment
 		"-f", "dash", //																choose dash format
 		BaseDir+"/"+*cmp.name+".mpd", //												output file
