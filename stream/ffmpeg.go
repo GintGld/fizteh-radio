@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 )
 
 /*
@@ -54,6 +55,11 @@ func generateDASHFiles(cmp *composition) error {
 		return fmt.Errorf("tried to check dir %s existance and failed with error %s", *cmp.name, err)
 	}
 
+	err := os.Mkdir(BaseDir+"/"+*cmp.name, 0777)
+	if err != nil {
+		return nil
+	}
+
 	// set the limit for bitrate (crutch untill bitrateSwitching)
 	bitrate := 128000
 	if cmp.meta.bitrate < 128000 {
@@ -87,7 +93,7 @@ func generateDASHFiles(cmp *composition) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	err := cmd.Run()
+	err = cmd.Run()
 
 	return err
 }
@@ -160,5 +166,5 @@ func getMetadataParameter(file *string, par string) (string, error) {
 		return "", err
 	}
 
-	return string(stdout), nil
+	return strings.Trim(string(stdout), "\n"), nil
 }
