@@ -1,3 +1,12 @@
+/*
+ * FFmpeg wrapper
+ * All ffmpeg commands are inspired by https://codemore.ru/2021/05/01/video-streaming.html
+ *
+ * No libraries are used, because none of them don't provide necessary functional.
+ *
+ * Gintaras Gliaudelis 08.11.2023
+ */
+
 package stream
 
 import (
@@ -8,16 +17,6 @@ import (
 	"strconv"
 	"strings"
 )
-
-/*
- * FFmpeg wrapper
- * All ffmpeg commands are inspired by https://codemore.ru/2021/05/01/video-streaming.html
- *
- * No libraries are used, because none of them don't provide necessary functional.
- * Just direct bash call
- *
- * Gintaras Gliaudelis 08.11.2023
- */
 
 // Important information from metadata
 type metadata struct {
