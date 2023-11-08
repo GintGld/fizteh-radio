@@ -23,6 +23,9 @@ type composition struct {
 
 var ScheduleGlobalConfig config
 
+// Dir where to place all file for streaming
+const BaseDir = "tmp"
+
 // Checks for a package
 func StreamInit() error {
 	return checkFFmpeg()
