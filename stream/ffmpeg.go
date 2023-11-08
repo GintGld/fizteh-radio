@@ -11,20 +11,11 @@ package stream
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 )
-
-// Important information from metadata
-type metadata struct {
-	duration      float64 // duration
-	bitrate       int     // bitrate of composition
-	sampling_rate int     // sampling rate of composition
-	channels      int     // number of channels (1 or 2)
-}
 
 // Availability check "ffmpeg" and "ffprobe" executables
 func checkFFmpeg() error {
@@ -44,19 +35,25 @@ func checkFFmpeg() error {
 	return nil
 }
 
+func mpdDir(cmp *composition) string {
+	return BaseDir + "/" + strconv.Itoa(cmp.id)
+}
+
+func mpdFile(cmp *composition) string {
+	return BaseDir + "/" + strconv.Itoa(cmp.id) + ".mpd"
+}
+
 // Generate segments
 func generateDASHFiles(cmp *composition) error {
-	// Check for no intersections
-	// between different compositions
-	if _, err := os.Stat(BaseDir + "/" + *cmp.name); err == nil {
-		return fmt.Errorf("dir with name %s already exists", *cmp.name)
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("tried to check dir %s existance and failed with error %s", *cmp.name, err)
+	// Check for if
+	if _, err := os.Stat(mpdDir(cmp)); err == nil {
+		return nil
 	}
 
-	err := os.Mkdir(BaseDir+"/"+*cmp.name, 0777)
-	if err != nil {
-		return nil
+	err := os.MkdirAll(mpdDir(cmp), 0777)
+	// if dir is already exist it is not error
+	if err != nil && !os.IsExist(err) {
+		return err
 	}
 
 	// set the limit for bitrate (crutch untill bitrateSwitching)
@@ -71,22 +68,22 @@ func generateDASHFiles(cmp *composition) error {
 	}
 
 	cmd := exec.Command(
-		"ffmpeg",        //																call converter
-		"-hide_banner",  //																hide banner
-		"-y",            //																force rewriting file
-		"-i", *cmp.file, //																input file
-		"-c:a", "aac", //																choose codec
-		"-b:a", strconv.Itoa(bitrate), //												choose bitrate (TODO: make different bitrate to enable bitrateSwitching)
-		"-ac", strconv.Itoa(cmp.meta.channels), //										number of channels (1 - mono, 2 - stereo)
-		"-ar", strconv.Itoa(sampling_rate), // 											sampling frequency (usually 41000/48000)
-		"-dash_segment_type", "mp4", //													container segments format
-		"-use_template", "1", //														use template instead of enumerate (shorter output)
-		"-use_timeline", "1", //														more information about timing for all segments
-		"-init_seg_name", *cmp.name+`/init-$RepresentationID$.$ext$`, //				template for initialization segment
-		"-media_seg_name", *cmp.name+`/chunk-$RepresentationID$-$Number%05d$.$ext$`, //	template for data segments
-		"-seg_duration", strconv.FormatFloat(cmp.segmentDuration, 'g', -1, 64), //		duration of each segment
-		"-f", "dash", //																choose dash format
-		BaseDir+"/"+*cmp.name+".mpd", //												output file
+		"ffmpeg",        //																			call converter
+		"-hide_banner",  //																			hide banner
+		"-y",            //																			force rewriting file
+		"-i", *cmp.file, //																			input file
+		"-c:a", "aac", //																			choose codec
+		"-b:a", strconv.Itoa(bitrate), //															choose bitrate (TODO: make different bitrate to enable bitrateSwitching)
+		"-ac", strconv.Itoa(cmp.meta.channels), //													number of channels (1 - mono, 2 - stereo)
+		"-ar", strconv.Itoa(sampling_rate), // 														sampling frequency (usually 41000/48000)
+		"-dash_segment_type", "mp4", //																container segments format
+		"-use_template", "1", //																	use template instead of enumerate (shorter output)
+		"-use_timeline", "1", //																	more information about timing for all segments
+		"-init_seg_name", strconv.Itoa(cmp.id)+`/init-$RepresentationID$.$ext$`, //				template for initialization segment
+		"-media_seg_name", strconv.Itoa(cmp.id)+`/chunk-$RepresentationID$-$Number%05d$.$ext$`, //	template for data segments
+		"-seg_duration", strconv.FormatFloat(cmp.segmentDuration, 'g', -1, 64), //					duration of each segment
+		"-f", "dash", //																			choose dash format
+		mpdFile(cmp), //																			output file
 	)
 
 	cmd.Stdout = os.Stdout
