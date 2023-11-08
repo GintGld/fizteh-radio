@@ -72,7 +72,7 @@ func generateDASHFiles(cmp *composition) error {
 		"-media_seg_name", *cmp.name+`-chunk-$RepresentationID$-$Number%05d$.$ext$`, //	template for data segments
 		"-seg_duration", strconv.FormatFloat(cmp.segmentDuration, 'g', -1, 64), //		duration of each segment
 		"-f", "dash", //																choose dash format
-		"tmp/tmp.mpd", //																output file
+		"tmp/"+*cmp.name+".mpd", //														output file
 	)
 
 	cmd.Stdout = os.Stdout
