@@ -50,8 +50,12 @@ type metadata struct {
 const BaseDir = "tmp"
 
 // Checks for a package
-func StreamInit() error {
-	return checkFFmpeg()
+func StreamInit() (*config, error) {
+	if err := checkFFmpeg(); err != nil {
+		return nil, err
+	}
+
+	return new(config), nil
 }
 
 // Reset manifest
