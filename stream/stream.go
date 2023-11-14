@@ -6,8 +6,9 @@ import (
 )
 
 // Struct accumulating all information needed to
-// manage MPD streaming
-type config struct {
+// manage MPD streaming.
+// Broadcast Grid consist of prepared files (compositions)
+type broadcastGrid struct {
 	Manifest manifestSettings
 	Schedule scheduleSettings
 	mpd      manifestAPI
@@ -50,18 +51,18 @@ type metadata struct {
 const BaseDir = "tmp"
 
 // Checks for a package
-func StreamInit() (*config, error) {
+func Init() (*broadcastGrid, error) {
 	if err := checkFFmpeg(); err != nil {
 		return nil, err
 	}
 
-	return new(config), nil
+	return new(broadcastGrid), nil
 }
 
 // Reset manifest
-func (conf config) Reset() {
-	conf.initMPD()
-	clear(conf.Schedule.Source)
+func (bcg *broadcastGrid) Reset() {
+	bcg.initMPD()
+	clear(bcg.Schedule.Source)
 }
 
 // Creates new composition (reads metadata of file)
@@ -79,11 +80,9 @@ func NewComp(file *string, name *string, author *string, segmentDuration float64
 
 // Main function in package, stops by signal from context
 // Looks at actual schedule and prepare files for loading by client
-func (conf config) Run(ctx context.Context) error {
-	// for {
+func (bcg *broadcastGrid) Run(ctx context.Context) error {
+	for {
 
-	// time.Sleep()
-	// }
-
-	return nil
+		time.Sleep(bcg.Schedule.UpdateFrequency)
+	}
 }

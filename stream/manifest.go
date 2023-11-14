@@ -43,20 +43,20 @@ type manifestAPI struct {
 }
 
 // Create new dynamic manifest
-func (conf config) initMPD() {
-	conf.mpd.lastTimeStamp = 0
-	conf.mpd.lastPeriodID = 0
+func (bcg *broadcastGrid) initMPD() {
+	bcg.mpd.lastTimeStamp = 0
+	bcg.mpd.lastPeriodID = 0
 
-	conf.mpd.man = mpd.NewDynamicMPD(
+	bcg.mpd.man = mpd.NewDynamicMPD(
 		mpd.DASH_PROFILE_LIVE,
-		conf.Manifest.StartTime.String(),
-		conf.Manifest.BufferTime.String(),
-		mpd.AttrMinimumUpdatePeriod(conf.Manifest.UpdateFrequency.String()),
+		bcg.Manifest.StartTime.String(),
+		bcg.Manifest.BufferTime.String(),
+		mpd.AttrMinimumUpdatePeriod(bcg.Manifest.UpdateFrequency.String()),
 	)
 }
 
 // Add new compisition to dynamic manifest
-func (conf config) addNewComposition(cmp *composition) error {
+func (bcg *broadcastGrid) addNewComposition(cmp *composition) error {
 	// Generate DASH files
 	err := cmp.generateDASHFiles()
 	if err != nil {
@@ -81,68 +81,68 @@ func (conf config) addNewComposition(cmp *composition) error {
 
 	// Set `start` and `duration`
 	// correctly for dynamic manifest
-	*period.Start = conf.mpd.lastTimeStamp
+	*period.Start = bcg.mpd.lastTimeStamp
 	period.Duration = mpd.Duration(cmp.meta.duration)
-	conf.mpd.lastTimeStamp += period.Duration
+	bcg.mpd.lastTimeStamp += period.Duration
 
 	// Set id for period
-	conf.mpd.lastPeriodID++
-	period.ID = strconv.Itoa(conf.mpd.lastPeriodID)
+	bcg.mpd.lastPeriodID++
+	period.ID = strconv.Itoa(bcg.mpd.lastPeriodID)
 
 	// Cache composition to delete it correctly in the future
-	conf.mpd.compositionCache[period.ID] = cmp
+	bcg.mpd.compositionCache[period.ID] = cmp
 
 	// Add new period to dynamic manifest
-	conf.mpd.man.Periods = append(conf.mpd.man.Periods, period)
+	bcg.mpd.man.Periods = append(bcg.mpd.man.Periods, period)
 
 	return nil
 }
 
 // Delete periods that have played already
 // to optimize dynamic manifest size
-func (conf config) deleteAlreadyPlayed() error {
-	if len(conf.mpd.man.Periods) == 0 {
+func (bcg *broadcastGrid) deleteAlreadyPlayed() error {
+	if len(bcg.mpd.man.Periods) == 0 {
 		return nil
 	}
 
 	// Fix time moment
 	currentTime := time.Now().Unix()
-	start := conf.Manifest.StartTime
+	start := bcg.Manifest.StartTime
 
 	// Iterate over all periods
-	for i := 0; i < len(conf.mpd.man.Periods); i++ {
+	for i := 0; i < len(bcg.mpd.man.Periods); i++ {
 		// If period is playing now, all
 		// periods before it will be deleted
-		if start.Unix() <= currentTime && currentTime <= start.Add(time.Duration(conf.mpd.man.Periods[i].Duration)).Unix() {
+		if start.Unix() <= currentTime && currentTime <= start.Add(time.Duration(bcg.mpd.man.Periods[i].Duration)).Unix() {
 			// delete already played segments
-			for _, p := range conf.mpd.man.Periods[:i-1] {
+			for _, p := range bcg.mpd.man.Periods[:i-1] {
 				// delete segment
-				if err := conf.mpd.compositionCache[p.ID].deleteDASHFiles(); err != nil {
+				if err := bcg.mpd.compositionCache[p.ID].deleteDASHFiles(); err != nil {
 					return err
 				}
 				// delete point from cache
-				delete(conf.mpd.compositionCache, p.ID)
+				delete(bcg.mpd.compositionCache, p.ID)
 			}
 
 			// delete periods from dynamic manifest
-			conf.mpd.man.Periods = conf.mpd.man.Periods[i-1:]
+			bcg.mpd.man.Periods = bcg.mpd.man.Periods[i-1:]
 
 			return nil
 		}
-		start = start.Add(time.Duration(conf.mpd.man.Periods[i].Duration))
+		start = start.Add(time.Duration(bcg.mpd.man.Periods[i].Duration))
 	}
 
 	// All manifest were played case
-	for _, p := range conf.mpd.man.Periods {
-		conf.mpd.compositionCache[p.ID].deleteDASHFiles()
-		delete(conf.mpd.compositionCache, p.ID)
+	for _, p := range bcg.mpd.man.Periods {
+		bcg.mpd.compositionCache[p.ID].deleteDASHFiles()
+		delete(bcg.mpd.compositionCache, p.ID)
 	}
-	clear(conf.mpd.man.Periods)
+	clear(bcg.mpd.man.Periods)
 
 	return nil
 }
 
 // Save actual version of dynamic manifest
-func (conf config) dump() error {
-	return conf.mpd.man.WriteToFile(conf.Manifest.Path)
+func (bcg *broadcastGrid) dump() error {
+	return bcg.mpd.man.WriteToFile(bcg.Manifest.Path)
 }
