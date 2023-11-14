@@ -16,42 +16,49 @@ import (
 	"github.com/zencoder/go-dash/v3/mpd"
 )
 
-// Dynamic manifest for streaming
-// Been initialized in func initMPD
-var manifest *mpd.MPD
-
-// Equals (start + duration) for the last period
+// manifestAPI.
+//
+// man (manifest).
+// Dynamic manifest for streaming.
+// Been initialized in func initMPD.
+//
+// lastTimeStep.
+// Equals (start + duration) for the last period.
 // in the dynamic manifest (= 0 if there are no periods).
-// Useful for adding new periods
-var lastTimeStamp mpd.Duration
-
-// Last PeriodID used in streadynamic manifest
-var lastPeriodID int
-
-// Cache for playing compositions.
-// Key    - period ID (string because mpd.period.ID is string)
+// Useful for adding new periods.
+//
+// lastPeriodID.
+// Used in streadynamic manifest.
+//
+// compositionCache.
+// Key    - period ID (string because mpd.period.ID is string).
 // Values - pointer for corresponding composition.
-// Used in deleting ffmpeg generated files
-var compositionCache map[string]*composition
+// Used in deleting ffmpeg generated files.
+type manifestAPI struct {
+	man *mpd.MPD
 
-// Create dynamic manifest
-func initMPD() {
-	lastTimeStamp = 0
-	lastPeriodID = 0
+	lastTimeStamp    mpd.Duration
+	lastPeriodID     int
+	compositionCache map[string]*composition
+}
 
-	manifest = mpd.NewDynamicMPD(
+// Create new dynamic manifest
+func (conf config) initMPD() {
+	conf.mpd.lastTimeStamp = 0
+	conf.mpd.lastPeriodID = 0
+
+	conf.mpd.man = mpd.NewDynamicMPD(
 		mpd.DASH_PROFILE_LIVE,
-		ScheduleGlobalConfig.AvailabilityStartTime.String(),
-		ScheduleGlobalConfig.MinBufferTime,
-		mpd.AttrPublishTime(ScheduleGlobalConfig.AvailabilityStartTime.String()),
-		mpd.AttrMinimumUpdatePeriod(ScheduleGlobalConfig.MinimumUpdatePeriod),
+		conf.Manifest.StartTime.String(),
+		conf.Manifest.BufferTime.String(),
+		mpd.AttrMinimumUpdatePeriod(conf.Manifest.UpdateFrequency.String()),
 	)
 }
 
 // Add new compisition to dynamic manifest
-func addNewComposition(cmp *composition) error {
+func (conf config) addNewComposition(cmp *composition) error {
 	// Generate DASH files
-	err := generateDASHFiles(cmp)
+	err := cmp.generateDASHFiles()
 	if err != nil {
 		return err
 	}
@@ -74,69 +81,68 @@ func addNewComposition(cmp *composition) error {
 
 	// Set `start` and `duration`
 	// correctly for dynamic manifest
-	*period.Start = lastTimeStamp
+	*period.Start = conf.mpd.lastTimeStamp
 	period.Duration = mpd.Duration(cmp.meta.duration)
-	lastTimeStamp += period.Duration
+	conf.mpd.lastTimeStamp += period.Duration
 
 	// Set id for period
-	lastPeriodID++
-	period.ID = strconv.Itoa(lastPeriodID)
+	conf.mpd.lastPeriodID++
+	period.ID = strconv.Itoa(conf.mpd.lastPeriodID)
 
 	// Cache composition to delete it correctly in the future
-	compositionCache[period.ID] = cmp
+	conf.mpd.compositionCache[period.ID] = cmp
 
 	// Add new period to dynamic manifest
-	manifest.Periods = append(manifest.Periods, period)
+	conf.mpd.man.Periods = append(conf.mpd.man.Periods, period)
 
 	return nil
 }
 
 // Delete periods that have played already
 // to optimize dynamic manifest size
-func deleteAlreadyPlayed() error {
-	if len(manifest.Periods) == 0 {
+func (conf config) deleteAlreadyPlayed() error {
+	if len(conf.mpd.man.Periods) == 0 {
 		return nil
 	}
 
 	// Fix time moment
 	currentTime := time.Now().Unix()
-	start := ScheduleGlobalConfig.AvailabilityStartTime
+	start := conf.Manifest.StartTime
 
 	// Iterate over all periods
-	for i := 0; i < len(manifest.Periods); i++ {
+	for i := 0; i < len(conf.mpd.man.Periods); i++ {
 		// If period is playing now, all
 		// periods before it will be deleted
-		if start.Unix() <= currentTime && currentTime <= start.Add(time.Duration(manifest.Periods[i].Duration)).Unix() {
+		if start.Unix() <= currentTime && currentTime <= start.Add(time.Duration(conf.mpd.man.Periods[i].Duration)).Unix() {
 			// delete already played segments
-			for _, p := range manifest.Periods[:i-1] {
-				// delete segments
-				err := deleteDASHFiles(compositionCache[p.ID])
-				if err != nil {
-					return nil
+			for _, p := range conf.mpd.man.Periods[:i-1] {
+				// delete segment
+				if err := conf.mpd.compositionCache[p.ID].deleteDASHFiles(); err != nil {
+					return err
 				}
-				// optimize cache
-				delete(compositionCache, p.ID)
+				// delete point from cache
+				delete(conf.mpd.compositionCache, p.ID)
 			}
 
 			// delete periods from dynamic manifest
-			manifest.Periods = manifest.Periods[i-1:]
+			conf.mpd.man.Periods = conf.mpd.man.Periods[i-1:]
 
 			return nil
 		}
-		start = start.Add(time.Duration(manifest.Periods[i].Duration))
+		start = start.Add(time.Duration(conf.mpd.man.Periods[i].Duration))
 	}
 
 	// All manifest were played case
-	for _, p := range manifest.Periods {
-		deleteDASHFiles(compositionCache[p.ID])
-		delete(compositionCache, p.ID)
+	for _, p := range conf.mpd.man.Periods {
+		conf.mpd.compositionCache[p.ID].deleteDASHFiles()
+		delete(conf.mpd.compositionCache, p.ID)
 	}
-	clear(manifest.Periods)
+	clear(conf.mpd.man.Periods)
 
-	return fmt.Errorf("manifest does not have actual content. time %s", time.Unix(currentTime, 0).String())
+	return nil
 }
 
 // Save actual version of dynamic manifest
-func writeDynamicManifest() error {
-	return manifest.WriteToFile(ScheduleGlobalConfig.SchedulePath)
+func (conf config) dump() error {
+	return conf.mpd.man.WriteToFile(conf.Manifest.Path)
 }

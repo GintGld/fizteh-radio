@@ -1,23 +1,34 @@
 package stream
 
 import (
+	"context"
 	"time"
 )
 
-// Struct includes all information needed to
+// Struct accumulating all information needed to
 // manage MPD streaming
 type config struct {
-	MinimumUpdatePeriod        string
-	MinBufferTime              string
-	ID                         int
-	AvailabilityStartTime      time.Time
-	SuggestedPresentationDelay string
-	FileDirectory              string
-	SchedulePath               string
+	Manifest manifestSettings
+	Schedule scheduleSettings
+	mpd      manifestAPI
+}
+
+type manifestSettings struct {
+	UpdateFrequency time.Duration // MPD MinimumUpdateFrequency
+	BufferTime      time.Duration // MPD MinBufferTime
+	ID              int           // MPD ID
+	StartTime       time.Time     // MPD AvailabilityStartTime
+	SuggestedDelay  time.Duration // MPD SuggestedPresentationDelay
+	Path            string        // path to dump dunamic manifest
+}
+
+type scheduleSettings struct {
+	Source          []*composition // array of compositions that will be used in updating manifest
+	UpdateFrequency time.Duration  // updating dynamic manifest frequency
 }
 
 // Struct includes neccecary information
-// for updating DASH manifest
+// for upload composition to the manifest
 type composition struct {
 	id              int       // unique id for composition
 	file            *string   // path to file
@@ -35,9 +46,7 @@ type metadata struct {
 	channels      int     // number of channels (1 or 2)
 }
 
-var ScheduleGlobalConfig config
-
-// Dir where to place all file for streaming
+// Dir to place all files for streaming (placeholder)
 const BaseDir = "tmp"
 
 // Checks for a package
@@ -45,9 +54,10 @@ func StreamInit() error {
 	return checkFFmpeg()
 }
 
-// Create new DASH manifest with given parameters
-func InitSchedule() {
-	initMPD()
+// Reset manifest
+func (conf config) Reset() {
+	conf.initMPD()
+	clear(conf.Schedule.Source)
 }
 
 // Creates new composition (reads metadata of file)
@@ -61,4 +71,15 @@ func NewComp(file *string, name *string, author *string, segmentDuration float64
 	cmp.meta = meta
 
 	return &cmp, nil
+}
+
+// Main function in package, stops by signal from context
+// Looks at actual schedule and prepare files for loading by client
+func (conf config) Run(ctx context.Context) error {
+	// for {
+
+	// time.Sleep()
+	// }
+
+	return nil
 }
