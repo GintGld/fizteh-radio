@@ -47,6 +47,8 @@ func (bcg *broadcastGrid) initMPD() {
 	bcg.mpd.lastTimeStamp = 0
 	bcg.mpd.lastPeriodID = 0
 
+	bcg.mpd.compositionCache = make(map[string]*composition)
+
 	bcg.mpd.man = mpd.NewDynamicMPD(
 		mpd.DASH_PROFILE_LIVE,
 		bcg.Manifest.StartTime.String(),
@@ -86,8 +88,8 @@ func (bcg *broadcastGrid) addNewComposition(cmp *composition) error {
 	bcg.mpd.lastTimeStamp += period.Duration
 
 	// Set id for period
-	bcg.mpd.lastPeriodID++
 	period.ID = strconv.Itoa(bcg.mpd.lastPeriodID)
+	bcg.mpd.lastPeriodID++
 
 	// Cache composition to delete it correctly in the future
 	bcg.mpd.compositionCache[period.ID] = cmp
@@ -106,40 +108,46 @@ func (bcg *broadcastGrid) deleteAlreadyPlayed() error {
 	}
 
 	// Fix time moment
-	currentTime := time.Now().Unix()
-	start := bcg.Manifest.StartTime
+	currentTime := time.Now()
 
 	// Iterate over all periods
-	for i := 0; i < len(bcg.mpd.man.Periods); i++ {
+	// start form 2, because manifest always has nil-period at the start
+	for i := 2; i < len(bcg.mpd.man.Periods); i++ {
+		// start and the end of the composition in absolute time
+		start := bcg.Manifest.StartTime.Add(time.Duration(*bcg.mpd.man.Periods[i].Start))
+		end := start.Add(time.Duration(bcg.mpd.man.Periods[i].Duration))
+
 		// If period is playing now, all
 		// periods before it will be deleted
-		if start.Unix() <= currentTime && currentTime <= start.Add(time.Duration(bcg.mpd.man.Periods[i].Duration)).Unix() {
+		if currentTime.After(start) && currentTime.Before(end) {
 			// delete already played segments
-			for _, p := range bcg.mpd.man.Periods[:i-1] {
+			for _, p := range bcg.mpd.man.Periods[1:i] {
 				// delete segment
 				if err := bcg.mpd.compositionCache[p.ID].deleteDASHFiles(); err != nil {
+					fmt.Println("youre down")
 					return err
 				}
+
 				// delete point from cache
 				delete(bcg.mpd.compositionCache, p.ID)
 			}
 
 			// delete periods from dynamic manifest
-			bcg.mpd.man.Periods = bcg.mpd.man.Periods[i-1:]
+			bcg.mpd.man.Periods = bcg.mpd.man.Periods[i:]
 
 			return nil
 		}
-		start = start.Add(time.Duration(bcg.mpd.man.Periods[i].Duration))
 	}
 
-	// All manifest were played case
-	for _, p := range bcg.mpd.man.Periods {
+	// All manifest were played case,
+	// It is unwanted behavior, so error returned
+	for _, p := range bcg.mpd.man.Periods[1:] {
 		bcg.mpd.compositionCache[p.ID].deleteDASHFiles()
 		delete(bcg.mpd.compositionCache, p.ID)
 	}
 	clear(bcg.mpd.man.Periods)
 
-	return nil
+	return fmt.Errorf("have get out of the time schedule. Time: %s", currentTime.String())
 }
 
 // Save actual version of dynamic manifest

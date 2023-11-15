@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Availability check for "ffmpeg" and "ffprobe" executables
@@ -67,10 +68,10 @@ func (cmp *composition) generateDASHFiles() error {
 	}
 
 	cmd := exec.Command(
-		"ffmpeg",        //																			call converter
-		"-hide_banner",  //																			hide banner
-		"-y",            //																			force rewriting file
-		"-i", *cmp.file, //																			input file
+		"ffmpeg",       //																			call converter
+		"-hide_banner", //																			hide banner
+		"-y",           //																			force rewriting file
+		"-i", cmp.file, //																			input file
 		"-c:a", "aac", //																			choose codec
 		"-b:a", strconv.Itoa(bitrate), //															choose bitrate (TODO: make different bitrate to enable bitrateSwitching)
 		"-ac", strconv.Itoa(cmp.meta.channels), //													number of channels (1 - mono, 2 - stereo)
@@ -80,13 +81,13 @@ func (cmp *composition) generateDASHFiles() error {
 		"-use_timeline", "1", //																	more information about timing for all segments
 		"-init_seg_name", strconv.Itoa(cmp.id)+`/init-$RepresentationID$.$ext$`, //					template for initialization segment
 		"-media_seg_name", strconv.Itoa(cmp.id)+`/chunk-$RepresentationID$-$Number%05d$.$ext$`, //	template for data segments
-		"-seg_duration", strconv.FormatFloat(cmp.segmentDuration, 'g', -1, 64), //					duration of each segment
+		"-seg_duration", strconv.FormatFloat(cmp.segmentDuration.Seconds(), 'g', -1, 64), //		duration of each segment
 		"-f", "dash", //																			choose dash format
 		cmp.mpdFile(), //																			output file
 	)
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// cmd.Stdout = os.Stdout
+	// cmd.Stderr = os.Stderr
 
 	return cmd.Run()
 }
@@ -95,10 +96,10 @@ func (cmp *composition) generateDASHFiles() error {
 // for current composition
 func (cmp *composition) deleteDASHFiles() error {
 	cmd := exec.Command(
-		"rm",                 // remove executable (will work only on UNIX systems)
-		"-rf",                // recursive and forced deletion
-		cmp.mpdFile(),        // generated manifest
-		strconv.Itoa(cmp.id), // generated segments
+		"rm",          // remove executable (will work only on UNIX systems)
+		"-rf",         // recursive and forced deletion
+		cmp.mpdFile(), // generated manifest
+		cmp.mpdDir(),  // generated segments
 	)
 
 	return cmd.Run()
@@ -150,7 +151,7 @@ func newMeta(file *string) (*metadata, error) {
 		bitrate:       bitrate,
 		sampling_rate: sample_rate,
 		channels:      channels,
-		duration:      duration,
+		duration:      time.Duration(duration * 1e9),
 	}
 
 	return &meta, nil

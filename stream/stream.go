@@ -10,8 +10,8 @@ import (
 // Broadcast Grid consist of prepared files (compositions)
 type broadcastGrid struct {
 	Manifest manifestSettings
-	Schedule scheduleSettings
 	mpd      manifestAPI
+	Store    contentGenerator
 }
 
 type manifestSettings struct {
@@ -23,66 +23,109 @@ type manifestSettings struct {
 	Path            string        // path to dump dunamic manifest
 }
 
-type scheduleSettings struct {
-	Source          []*composition // array of compositions that will be used in updating manifest
-	UpdateFrequency time.Duration  // updating dynamic manifest frequency
-}
-
 // Struct includes neccecary information
 // for upload composition to the manifest
 type composition struct {
-	id              int       // unique id for composition
-	file            *string   // path to file
-	name            *string   // name (i.e. file name without extention)
-	author          *string   // author
-	segmentDuration float64   // duration of segment
-	meta            *metadata // metadata
+	id              int           // unique id for composition
+	file            string        // path to file
+	segmentDuration time.Duration // duration of segment
+	meta            metadata      // metadata
 }
 
 // Important information from metadata
 type metadata struct {
-	duration      float64 // duration
-	bitrate       int     // bitrate of composition
-	sampling_rate int     // sampling rate of composition
-	channels      int     // number of channels (1 or 2)
+	duration      time.Duration // duration
+	bitrate       int           // bitrate of composition
+	sampling_rate int           // sampling rate of composition
+	channels      int           // number of channels (1 or 2)
 }
 
 // Dir to place all files for streaming (placeholder)
 const BaseDir = "tmp"
 
 // Checks for a package
-func Init() (*broadcastGrid, error) {
+func Init(StartTime time.Time, BufferTime time.Duration, UpdateFrequency time.Duration) (*broadcastGrid, error) {
 	if err := checkFFmpeg(); err != nil {
 		return nil, err
 	}
 
-	return new(broadcastGrid), nil
+	bcg := new(broadcastGrid)
+
+	bcg.Manifest.StartTime = StartTime
+	bcg.Manifest.BufferTime = BufferTime
+	bcg.Manifest.UpdateFrequency = UpdateFrequency
+
+	bcg.initMPD()
+
+	return bcg, nil
 }
 
 // Reset manifest
 func (bcg *broadcastGrid) Reset() {
 	bcg.initMPD()
-	clear(bcg.Schedule.Source)
 }
 
 // Creates new composition (reads metadata of file)
-func NewComp(file *string, name *string, author *string, segmentDuration float64) (*composition, error) {
-	cmp := composition{file: file, name: name, author: author, segmentDuration: segmentDuration}
+func NewComp(id int, file string, segmentDuration time.Duration) (*composition, error) {
+	cmp := composition{id: id, file: file, segmentDuration: segmentDuration}
 
-	meta, err := newMeta(file)
+	meta, err := newMeta(&file)
 	if err != nil {
 		return nil, err
 	}
-	cmp.meta = meta
+	cmp.meta = *meta
 
 	return &cmp, nil
 }
 
-// Main function in package, stops by signal from context
-// Looks at actual schedule and prepare files for loading by client
+// Looks at actual schedule and prepare files for loading by client.
+// Main function in package, stops by signal from context.
 func (bcg *broadcastGrid) Run(ctx context.Context) error {
-	for {
+	// Time "horizon" of prepared data
+	horizon := bcg.Manifest.StartTime
 
-		time.Sleep(bcg.Schedule.UpdateFrequency)
+	// get first composition
+	cmp, err := bcg.Store.getNextComposition()
+	if err != nil {
+		return err
+	}
+
+	if err = bcg.addNewComposition(cmp); err != nil {
+		return err
+	}
+
+	// Increase horizon due to new composition in manifest
+	horizon = horizon.Add(cmp.meta.duration)
+
+	// Main loop, can be stopped via Context
+	for {
+		if time.Until(horizon) < 10*time.Second { // placeholder
+			cmp, err := bcg.Store.getNextComposition()
+			if err != nil {
+				return err
+			}
+
+			if err = bcg.addNewComposition(cmp); err != nil {
+				return err
+			}
+
+			if err = bcg.dump(); err != nil {
+				return err
+			}
+
+			if err = bcg.deleteAlreadyPlayed(); err != nil {
+				return err
+			}
+
+			horizon = horizon.Add(cmp.meta.duration)
+		}
+
+		// Check if Context was closed
+		// In other case wait to make one more iteration
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second): // placeholder
+		}
 	}
 }
