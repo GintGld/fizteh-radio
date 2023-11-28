@@ -23,12 +23,12 @@ import (
 // Been initialized in func initMPD.
 //
 // lastTimeStep.
-// Equals (start + duration) for the last period.
+// Equals (start + duration) for the last period
 // in the dynamic manifest (= 0 if there are no periods).
 // Useful for adding new periods.
 //
 // lastPeriodID.
-// Used in streadynamic manifest.
+// Counter for periods in dynamic manifest
 //
 // compositionCache.
 // Key    - period ID (string because mpd.period.ID is string).
@@ -37,9 +37,10 @@ import (
 type manifestAPI struct {
 	man *mpd.MPD
 
-	lastTimeStamp    mpd.Duration
-	lastPeriodID     int
-	compositionCache map[string]*composition
+	lastTimeStamp      mpd.Duration
+	lastPeriodID       int
+	compositionCache   map[string]*composition
+	compositionCounter map[int]int
 }
 
 // Create new dynamic manifest
@@ -48,13 +49,38 @@ func (bcg *broadcastGrid) initMPD() {
 	bcg.mpd.lastPeriodID = 0
 
 	bcg.mpd.compositionCache = make(map[string]*composition)
+	bcg.mpd.compositionCounter = make(map[int]int)
+
+	// Method (*mpd.Duration).String() takes pointer as an argument
+	bufferTime := mpd.Duration(bcg.Manifest.BufferTime)
+	minimumUpdatePeriod := mpd.Duration(bcg.Manifest.UpdateFrequency)
 
 	bcg.mpd.man = mpd.NewDynamicMPD(
 		mpd.DASH_PROFILE_LIVE,
-		bcg.Manifest.StartTime.String(),
-		bcg.Manifest.BufferTime.String(),
-		mpd.AttrMinimumUpdatePeriod(bcg.Manifest.UpdateFrequency.String()),
+		bcg.Manifest.StartTime.UTC().Format("2006-01-02T15:04:05"), // see https://ffmpeg.org/doxygen/trunk/dashdec_8c_source.html get_utc_date_time_insec
+		bufferTime.String(),
+		mpd.AttrMinimumUpdatePeriod(minimumUpdatePeriod.String()),
 	)
+
+	zeroBufferDepth := "PT0S"
+
+	bcg.mpd.man.TimeShiftBufferDepth = &zeroBufferDepth
+
+	UTCTimingSchemeIDURI := "urn:mpeg:dash:utc:http-iso:2014"
+	UTCTimingValue := "https://time.akamai.com/?isoms"
+
+	// Set UTCTiming for client synchronisation
+	bcg.mpd.man.UTCTiming.SchemeIDURI = &UTCTimingSchemeIDURI
+	bcg.mpd.man.UTCTiming.Value = &UTCTimingValue
+
+	// *bcg.mpd.man.Profiles = "urn:mpeg:dash:profile:isoff-live:2011,http://dashif.org/guidelines/dash-if-simple"
+
+	// *bcg.mpd.man.UTCTiming.SchemeIDURI = "urn:mpeg:dash:utc:http-head:2014"
+	// *bcg.mpd.man.UTCTiming.Value = "http://time.akamai.com/?iso"
+
+	// Reset array of periods,because it has
+	// uneccecary for our realisation element
+	bcg.mpd.man.Periods = nil
 }
 
 // Add new compisition to dynamic manifest
@@ -89,6 +115,8 @@ func (bcg *broadcastGrid) addNewComposition(cmp *composition) error {
 
 	// Set id for period
 	period.ID = strconv.Itoa(bcg.mpd.lastPeriodID)
+	*period.AdaptationSets[0].ID = strconv.Itoa(bcg.mpd.lastPeriodID)
+	// *period.AdaptationSets[0].Representations[0].ID = strconv.Itoa(bcg.mpd.lastPeriodID)
 	bcg.mpd.lastPeriodID++
 
 	// Cache composition to delete it correctly in the future
@@ -96,6 +124,12 @@ func (bcg *broadcastGrid) addNewComposition(cmp *composition) error {
 
 	// Add new period to dynamic manifest
 	bcg.mpd.man.Periods = append(bcg.mpd.man.Periods, period)
+
+	if _, exist := bcg.mpd.compositionCounter[cmp.id]; !exist {
+		bcg.mpd.compositionCounter[cmp.id] = 1
+	} else {
+		bcg.mpd.compositionCounter[cmp.id]++
+	}
 
 	return nil
 }
@@ -112,7 +146,7 @@ func (bcg *broadcastGrid) deleteAlreadyPlayed() error {
 
 	// Iterate over all periods
 	// start form 2, because manifest always has nil-period at the start
-	for i := 2; i < len(bcg.mpd.man.Periods); i++ {
+	for i := 0; i < len(bcg.mpd.man.Periods); i++ {
 		// start and the end of the composition in absolute time
 		start := bcg.Manifest.StartTime.Add(time.Duration(*bcg.mpd.man.Periods[i].Start))
 		end := start.Add(time.Duration(bcg.mpd.man.Periods[i].Duration))
@@ -120,19 +154,30 @@ func (bcg *broadcastGrid) deleteAlreadyPlayed() error {
 		// If period is playing now, all
 		// periods before it will be deleted
 		if currentTime.After(start) && currentTime.Before(end) {
-			// delete already played segments
-			for _, p := range bcg.mpd.man.Periods[1:i] {
-				// delete segment
-				if err := bcg.mpd.compositionCache[p.ID].deleteDASHFiles(); err != nil {
-					fmt.Println("youre down")
-					return err
-				}
-
-				// delete point from cache
-				delete(bcg.mpd.compositionCache, p.ID)
+			// First period is playing case, nothing to delete
+			if i == 0 {
+				return nil
 			}
 
-			// delete periods from dynamic manifest
+			// Delete already played segments
+			for _, p := range bcg.mpd.man.Periods[:i] {
+
+				cmp := bcg.mpd.compositionCache[p.ID]
+				bcg.mpd.compositionCounter[cmp.id]--
+				// Delete segment
+				if bcg.mpd.compositionCounter[cmp.id] == 0 {
+					if err := cmp.deleteDASHFiles(); err != nil {
+						return err
+					}
+					delete(bcg.mpd.compositionCounter, cmp.id)
+				}
+
+				// Delete point from cache
+				delete(bcg.mpd.compositionCache, p.ID)
+
+			}
+
+			// Delete periods from dynamic manifest
 			bcg.mpd.man.Periods = bcg.mpd.man.Periods[i:]
 
 			return nil
@@ -141,8 +186,16 @@ func (bcg *broadcastGrid) deleteAlreadyPlayed() error {
 
 	// All manifest were played case,
 	// It is unwanted behavior, so error returned
-	for _, p := range bcg.mpd.man.Periods[1:] {
-		bcg.mpd.compositionCache[p.ID].deleteDASHFiles()
+	for _, p := range bcg.mpd.man.Periods {
+		cmp := bcg.mpd.compositionCache[p.ID]
+		bcg.mpd.compositionCounter[cmp.id]--
+		// delete segment
+		if bcg.mpd.compositionCounter[cmp.id] == 0 {
+			if err := cmp.deleteDASHFiles(); err != nil {
+				return err
+			}
+			delete(bcg.mpd.compositionCounter, cmp.id)
+		}
 		delete(bcg.mpd.compositionCache, p.ID)
 	}
 	clear(bcg.mpd.man.Periods)

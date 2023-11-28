@@ -4,10 +4,6 @@ import (
 	"time"
 )
 
-type contentGenerator interface {
-	getNextComposition() (*composition, error)
-}
-
 type mixer struct {
 	content []string
 	id      int
@@ -23,7 +19,7 @@ func NewMixer(paths ...string) *mixer {
 func (m *mixer) getNextComposition() (*composition, error) {
 	filePath := m.content[m.id]
 
-	cmp, err := NewComp(m.id, filePath, time.Second)
+	cmp, err := NewComp(m.id, filePath, 2*time.Second)
 
 	m.id++
 	if m.id == len(m.content) {

@@ -23,6 +23,10 @@ type manifestSettings struct {
 	Path            string        // path to dump dunamic manifest
 }
 
+type contentGenerator interface {
+	getNextComposition() (*composition, error)
+}
+
 // Struct includes neccecary information
 // for upload composition to the manifest
 type composition struct {
