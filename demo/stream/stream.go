@@ -103,7 +103,7 @@ func (bcg *broadcastGrid) Run(ctx context.Context) error {
 
 	// Main loop, can be stopped via Context
 	for {
-		if time.Until(horizon) < 10*time.Second { // placeholder
+		if time.Until(horizon) < 60*time.Second { // placeholder
 			cmp, err := bcg.Store.getNextComposition()
 			if err != nil {
 				return err

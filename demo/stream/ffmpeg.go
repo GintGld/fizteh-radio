@@ -47,9 +47,9 @@ func (cmp *composition) mpdFile() string {
 // Generate segments
 func (cmp *composition) generateDASHFiles() error {
 	// Check if dir is already exists
-	if _, err := os.Stat(cmp.mpdDir()); err == nil {
-		return nil
-	}
+	// if _, err := os.Stat(cmp.mpdDir()); err == nil {
+	// 	return nil
+	// }
 
 	// if dir is already exist it is not an error
 	if err := os.MkdirAll(cmp.mpdDir(), 0777); err != nil && !os.IsExist(err) {
@@ -57,14 +57,14 @@ func (cmp *composition) generateDASHFiles() error {
 	}
 
 	// set the limit for bitrate (placeholder before bitrateSwitching)
-	bitrate := 128000
-	if cmp.meta.bitrate < 128000 {
+	bitrate := 96000
+	if cmp.meta.bitrate < bitrate {
 		bitrate = cmp.meta.bitrate
 	}
 	// set the limit for sampling rate
-	sampling_rate := 48000
-	if cmp.meta.sampling_rate < 48000 {
-		sampling_rate = cmp.meta.sampling_rate
+	samplingRate := 44100
+	if cmp.meta.sampling_rate < samplingRate {
+		samplingRate = cmp.meta.sampling_rate
 	}
 
 	cmd := exec.Command(
@@ -75,10 +75,10 @@ func (cmp *composition) generateDASHFiles() error {
 		"-c:a", "aac", //																			choose codec
 		"-b:a", strconv.Itoa(bitrate), //															choose bitrate (TODO: make different bitrate to enable bitrateSwitching)
 		"-ac", strconv.Itoa(cmp.meta.channels), //													number of channels (1 - mono, 2 - stereo)
-		"-ar", strconv.Itoa(sampling_rate), // 														sampling frequency (usually 41000/48000)
+		"-ar", strconv.Itoa(samplingRate), // 														sampling frequency (usually 44100/48000)
 		"-dash_segment_type", "mp4", //																container segments format
 		"-use_template", "1", //																	use template instead of enumerate (shorter output)
-		"-use_timeline", "1", //																	more information about timing for all segments
+		"-use_timeline", "0", //																	more information about timing for all segments
 		"-init_seg_name", strconv.Itoa(cmp.id)+`/init-$RepresentationID$.$ext$`, //					template for initialization segment
 		"-media_seg_name", strconv.Itoa(cmp.id)+`/chunk-$RepresentationID$-$Number%05d$.$ext$`, //	template for data segments
 		"-seg_duration", strconv.FormatFloat(cmp.segmentDuration.Seconds(), 'g', -1, 64), //		duration of each segment

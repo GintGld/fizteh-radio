@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Live Streaming Player</title>
+    <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
+    <style>
+      .center {
+        margin: auto;
+        width: 10%;
+        /* border: 3px solid green; */
+        padding: 300px;
+        font-size:medium;
+      }
+    </style>
+  </head>
+  <body>
+    <audio></audio>
+    <div class="center">
+      <div>
+        <input type="button" value="Radio demo" onclick="load()">
+      </div>
+      <div>
+        Behind live:<br/><span id="audioDelay"></span>
+      </div>
+      <div>
+        Buffer:<br/><span id="audioBuffer"></span>
+      </div>
+    </div>
+
+    <script>
+      var player
+      const url = 'http://localhost:3000/test.mpd'
+
+      function init() {
+        player = dashjs.MediaPlayer().create()
+        player.initialize()
+
+        document.querySelector('#audioDelay').innerHTML = "-";
+        document.querySelector('#audioBuffer').innerHTML = "-";
+      }
+
+      var state = 1
+      var timer
+
+      function load() {
+        if (state == 1) { // start playing
+          const starttime = (new Date()).getTime() / 1000;
+          player.attachView(document.querySelector('audio'))
+          player.attachSource(url, `${starttime}`)
+          state = 2
+
+          timer = setInterval(() => {
+            d = new Date()
+            document.querySelector('#audioDelay').innerHTML = Math.round(1000*(d.getTime() / 1000 - Number(player.timeAsUTC())))/1000 + 's'
+            document.querySelector('#audioBuffer').innerHTML = player.getBufferLength() + 's';
+          }, 1000)
+        } else { // stop playing
+          player.reset()
+          state = 1
+          clearTimeout(timer)
+          document.querySelector('#audioDelay').innerHTML = "-";
+          document.querySelector('#audioBuffer').innerHTML = "-";
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+          init();
+      });
+    </script>
+  </body>
+</html>

@@ -62,9 +62,9 @@ func (bcg *broadcastGrid) initMPD() {
 		mpd.AttrMinimumUpdatePeriod(minimumUpdatePeriod.String()),
 	)
 
-	zeroBufferDepth := "PT0S"
+	BufferDepth := "PT5S"
 
-	bcg.mpd.man.TimeShiftBufferDepth = &zeroBufferDepth
+	bcg.mpd.man.TimeShiftBufferDepth = &BufferDepth
 
 	UTCTimingSchemeIDURI := "urn:mpeg:dash:utc:http-iso:2014"
 	UTCTimingValue := "https://time.akamai.com/?isoms"

@@ -19,7 +19,7 @@ func NewMixer(paths ...string) *mixer {
 func (m *mixer) getNextComposition() (*composition, error) {
 	filePath := m.content[m.id]
 
-	cmp, err := NewComp(m.id, filePath, 2*time.Second)
+	cmp, err := NewComp(m.id, filePath, 500*time.Millisecond)
 
 	m.id++
 	if m.id == len(m.content) {
