@@ -1,2 +1,4 @@
-tmp
 go.work*
+storage/storage.db
+demo/tmp/*
+!demo/tmp/index.html

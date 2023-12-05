@@ -16,4 +16,4 @@ The structure of the directory:
     - **manifest.go** includes high-level and public functions
     - **store.go** stub for content generator
 
-> Note: to start the demo one should move **index.html** to tmp dir and change paths to the content in **main.go**
+> Note: to start the demo one should change content paths in **main.go**
