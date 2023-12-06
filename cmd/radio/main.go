@@ -6,6 +6,8 @@ import (
 	"log/slog"
 
 	"github.com/GintGld/fizteh-radio/internal/config"
+	"github.com/GintGld/fizteh-radio/internal/lib/sl"
+	"github.com/GintGld/fizteh-radio/internal/storage/sqlite"
 )
 
 const (
@@ -22,7 +24,11 @@ func main() {
 	log.Info("starting radio", slog.String("env", cfg.Env))
 	log.Debug("debug messages are enabled")
 
-	// TODO: init storage: SQLite
+	storage, err := sqlite.New(cfg.StoragePath)
+	if err != nil {
+		log.Error("failed to init storage", sl.Err(err))
+		os.Exit(1)
+	}
 
 	// TODO: init router: fiber
 
@@ -31,6 +37,10 @@ func main() {
 	// TODO: run scheduler
 
 	// TODO: run server
+
+	// TODO: graceful shutdown
+
+	storage.Stop()
 }
 
 func setupLogger(env string) *slog.Logger {

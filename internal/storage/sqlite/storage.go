@@ -1,4 +1,4 @@
-package mysql
+package sqlite
 
 import (
 	"context"
@@ -285,8 +285,6 @@ func (s *Storage) DeleteSegment(ctx context.Context, period int64) error {
 
 	return nil
 }
-
-// Write durarion in milliseconds
 
 // checkSegmentIntersection check if new
 // segment can be placed in the schedule
