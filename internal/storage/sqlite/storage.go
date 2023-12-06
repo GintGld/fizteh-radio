@@ -39,6 +39,7 @@ func (s *Storage) SaveUser(ctx context.Context, login string, passHash []byte) (
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	res, err := stmt.ExecContext(ctx, login, passHash)
 	if err != nil {
@@ -66,6 +67,7 @@ func (s *Storage) User(ctx context.Context, id int64) (models.User, error) {
 	if err != nil {
 		return models.User{}, fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	row := stmt.QueryRowContext(ctx, id)
 
@@ -90,12 +92,13 @@ func (s *Storage) DeleteUser(ctx context.Context, id int64) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	_, err = stmt.ExecContext(ctx, id)
 	if err != nil {
 		var sqliteErr sqlite3.Error
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
-			return fmt.Errorf("%s: %w", op, storage.ErrUserExists)
+			return fmt.Errorf("%s: %w", op, storage.ErrUserNotFound)
 		}
 
 		return fmt.Errorf("%s: %w", op, err)
@@ -113,6 +116,7 @@ func (s *Storage) SaveMedia(ctx context.Context, name string, author string, dur
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	res, err := stmt.ExecContext(ctx, name, author, (int64)(duration))
 	if err != nil {
@@ -140,6 +144,7 @@ func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 	if err != nil {
 		return models.Media{}, fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	row := stmt.QueryRowContext(ctx, id)
 
@@ -168,12 +173,13 @@ func (s *Storage) DeleteMedia(ctx context.Context, id int64) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	_, err = stmt.ExecContext(ctx, id)
 	if err != nil {
 		var sqliteErr sqlite3.Error
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
-			return fmt.Errorf("%s: %w", op, storage.ErrUserExists)
+			return fmt.Errorf("%s: %w", op, storage.ErrMediaNotFound)
 		}
 
 		return fmt.Errorf("%s: %w", op, err)
@@ -182,15 +188,16 @@ func (s *Storage) DeleteMedia(ctx context.Context, id int64) error {
 	return nil
 }
 
-// SaveSegment
-func (s *Storage) SaveSegment(ctx context.Context, mediaID int64, utc_time time.Time, begin time.Duration, end time.Duration) (int64, error) {
+// SaveSegment saves segment to schedule after
+// checking for no intersections with already
+// placed segments
+func (s *Storage) SaveSegment(ctx context.Context, mediaID int64, start time.Time, beginCut time.Duration, stopCut time.Duration) (int64, error) {
 	const op = "storage.sqlite.SaveSegment"
 
-	utc_begin := utc_time.Unix()
-	utc_end := utc_time.Unix() + (int64)(end) - (int64)(begin)
+	// absolute time for segment end
+	end := start.Add(stopCut - beginCut)
 
 	// TODO: transaction settings in BeginTx
-	// TODO: move each execution call for corresponding function
 
 	// Start transaction
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -199,51 +206,195 @@ func (s *Storage) SaveSegment(ctx context.Context, mediaID int64, utc_time time.
 	}
 	defer tx.Rollback()
 
-	// Check for intersections with already placed segments
-	stmt, err := s.db.Prepare(`
-		DECLARE @A AS INTEGER;
-		DECLARE @B AS INTEGER;
-		SET @A = ?;
-		SET @B = ?;
-		SELECT COUNT(*) FROM schedule WHERE (@A < utc_time AND utc_time < @B) OR (@A < utc_time + end - begin AND utc_time + end - begin  < @B)`)
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", op, err)
-	}
-
-	res, err := stmt.ExecContext(ctx, utc_begin, utc_end)
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", op, err)
-	}
-	count, err := res.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", op, err)
-	}
-	if count != 0 {
+	// check for intersections with already placed segments
+	if err := s.checkSegmentIntersection(ctx, start, end); err != nil {
 		return 0, fmt.Errorf("%s: %w", op, storage.ErrSegmentIntersect)
 	}
 
-	// TODO: shift segments placed after incerting one
-	stmt, err = s.db.Prepare("UPDATE schedule SET period = period + 1 WHERE utc_time > ?")
+	// get period that will given to new segment
+	insertPeriod, err := s.getPeriodForNewSegment(ctx, start)
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
-	res, err = stmt.ExecContext(ctx, utc_end)
+	// shift period for segments placed after inserting one
+	if err := s.shiftPeriods(ctx, insertPeriod); err != nil {
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+
+	// insert new segment
+	id, err := s.insertNewSegment(ctx, mediaID, insertPeriod, start, beginCut, stopCut)
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
-	// Insert new segment
-	stmt, err = s.db.Prepare("INSERT INTO schedule(media_id, period, utc_time, begin, end) VALUES(?, ?, ?, ?, ?)")
-	if err != nil {
+	// commit successful transaction
+	if err = tx.Commit(); err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
-	res, err = stmt.ExecContext(ctx, mediaID, (int64)(begin), (int64)(end))
+	return id, nil
+}
+
+// Segment returns segment by period
+func (s *Storage) Segment(ctx context.Context, period int64) (models.Segment, error) {
+	const op = "storage.sqlite.Segment"
+
+	segm := models.Segment{}
+	var msec int64
+
+	stmt, err := s.db.Prepare("SELECT id, media_id, period, start_ms, begin_cut, end_cut FROM schedule WHERE period = ?")
+	if err != nil {
+		return models.Segment{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	row := stmt.QueryRowContext(ctx, period)
+	err = row.Scan(&segm.ID, &segm.MediaID, &segm.Period, &msec, &segm.BeginCut, &segm.StopCut)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.Segment{}, fmt.Errorf("%s: %w", op, storage.ErrSegmentNotFound)
+		}
+
+		return models.Segment{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	segm.Start = time.Unix(msec/1000, msec%1000)
+
+	return segm, nil
+}
+
+// DeleteSegment deletes segmnt by its period
+func (s *Storage) DeleteSegment(ctx context.Context, period int64) error {
+	const op = "storage.sqlite.DeleteSegment"
+
+	stmt, err := s.db.Prepare("DELETE FROM schedule WHERE period = ?")
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	_, err = stmt.ExecContext(ctx, period)
 	if err != nil {
 		var sqliteErr sqlite3.Error
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
-			return 0, fmt.Errorf("%s: %w", op, storage.ErrMediaExists)
+			return fmt.Errorf("%s: %w", op, storage.ErrSegmentNotFound)
+		}
+
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
+// Write durarion in milliseconds
+
+// checkSegmentIntersection check if new
+// segment can be placed in the schedule
+// without intersections with already placed ones
+func (s *Storage) checkSegmentIntersection(ctx context.Context, start, end time.Time) error {
+	const op = "storage.sqlite.checkSegmentIntersection"
+
+	stmt, err := s.db.Prepare(`
+		DECLARE @start AS REAL = ?;
+		DECLARE @end   AS REAL = ?;
+		SELECT COUNT(*) FROM schedule WHERE
+			(
+				@start < start_ms AND
+				@end   > start_ms
+			)
+			OR
+			(
+				@start < start_ms + end_cut - begin_cut AND
+				@end   > start_ms + end_cut - begin_cut
+			)
+	`)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	res, err := stmt.ExecContext(ctx, start.UnixMilli(), end.UnixMilli())
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	count, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	if count != 0 {
+		return fmt.Errorf("%s: %w", op, storage.ErrSegmentIntersect)
+	}
+
+	return nil
+}
+
+// getPeriodForNewSegment returns period
+// that will have new segment
+func (s *Storage) getPeriodForNewSegment(ctx context.Context, begin time.Time) (int64, error) {
+	const op = "storage.sqlite.getPeriodForNewSegment"
+
+	stmt, err := s.db.Prepare(`
+		SELECT MAX(period) FROM schedule WHERE
+			start_ms < ?
+	`)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	res := stmt.QueryRowContext(ctx, begin.UnixMilli())
+
+	var maxPeriod sql.NullInt64
+	err = res.Scan(&maxPeriod)
+
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+
+	if maxPeriod.Valid {
+		return maxPeriod.Int64 + 1, nil
+	} else {
+		return 1, nil
+	}
+}
+
+// shiftPeriods increases period by 1
+// in segments that are placed
+// chronologically after new segment
+// to free space for new segment
+func (s *Storage) shiftPeriods(ctx context.Context, insertPeriod int64) error {
+	const op = "storage.sqlite.shiftPeriods"
+
+	stmt, err := s.db.Prepare("UPDATE schedule SET period = period + 1 WHERE period > ?")
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	_, err = stmt.ExecContext(ctx, insertPeriod)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
+// insertNewSegment inserts new segment
+// into schedule
+func (s *Storage) insertNewSegment(ctx context.Context, mediaID int64, insertPeriod int64, start time.Time, begin time.Duration, end time.Duration) (int64, error) {
+	const op = "storage.sqlite.insertNewSegment"
+
+	stmt, err := s.db.Prepare("INSERT INTO schedule(media_id, period, start_ms, begin_cut, end_cut) VALUES(?, ?, ?, ?, ?)")
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	res, err := stmt.ExecContext(ctx, mediaID, insertPeriod, start.UnixMilli(), begin.Milliseconds(), end.Milliseconds())
+	if err != nil {
+		var sqliteErr sqlite3.Error
+		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+			return 0, fmt.Errorf("%s: %w", op, storage.ErrSegmentExists)
 		}
 
 		return 0, fmt.Errorf("%s: %w", op, err)
@@ -254,33 +405,5 @@ func (s *Storage) SaveSegment(ctx context.Context, mediaID int64, utc_time time.
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
-	if err = tx.Commit(); err != nil {
-		return 0, fmt.Errorf("%s: %w", op, err)
-	}
-
 	return id, nil
-}
-
-// TODO: Segment()
-
-// TODO: DeleteSegment()
-
-func (s *Storage) checkSegmentIntersection(ctx context.Context, utc_time time.Time, begin time.Duration, end time.Duration) error {
-	// TODO
-	panic("not implemented")
-}
-
-func (s *Storage) getPeriodForNewSegment(ctx context.Context, utc_time time.Time, begin time.Duration, end time.Duration) (int64, error) {
-	// TODO
-	panic("not implemented")
-}
-
-func (s *Storage) shiftPeriods(ctx context.Context, startPeriod int64) error {
-	// TODO
-	panic("not implemented")
-}
-
-func (s *Storage) insertNewSegment(ctx context.Context, mediaID int64, utc_time time.Time, begin time.Duration, end time.Duration) error {
-	// TODO
-	panic("not implemented")
 }

@@ -16,7 +16,10 @@ type Media struct {
 }
 
 type Segment struct {
-	MediaFileID int64
-	start       time.Time
-	duration    time.Duration
+	ID       int64
+	MediaID  int64
+	Period   int64
+	Start    time.Time
+	BeginCut time.Duration
+	StopCut  time.Duration
 }
