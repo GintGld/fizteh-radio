@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS editors
     pass_hash   BLOB NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_login ON editors (login);
+
 CREATE TABLE IF NOT EXISTS library
 (
     id          INTEGER PRIMARY KEY,
@@ -15,11 +17,11 @@ CREATE TABLE IF NOT EXISTS library
 
 CREATE TABLE IF NOT EXISTS schedule
 (
-    id          INTEGER PRIMARY KEY
-    media_id    INTEGER
-    period      INTEGER UNIQUE
-    start_ms    INTEGER
-    begin_cut   INTEGER
+    id          INTEGER PRIMARY KEY,
+    media_id    INTEGER,
+    period      INTEGER UNIQUE,
+    start_ms    INTEGER,
+    begin_cut   INTEGER,
     stop_cut    INTEGER
 );
 

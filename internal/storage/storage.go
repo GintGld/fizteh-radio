@@ -3,8 +3,8 @@ package storage
 import "errors"
 
 var (
-	ErrUserExists       = errors.New("user exists")
-	ErrUserNotFound     = errors.New("user not found")
+	ErrEditorExists     = errors.New("editor exists")
+	ErrEditorNotFound   = errors.New("editor not found")
 	ErrMediaExists      = errors.New("media exists")
 	ErrMediaNotFound    = errors.New("media not found")
 	ErrSegmentExists    = errors.New("segment exists")

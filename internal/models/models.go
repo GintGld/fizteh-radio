@@ -2,11 +2,28 @@ package models
 
 import "time"
 
-type User struct {
-	ID       int64
-	Login    string
-	PassHash []byte
+type EditorIn struct {
+	Login string `json:"login"`
+	Pass  string `json:"pass"`
 }
+
+type EditorOut struct {
+	ID    int64  `json:"id"`
+	Login string `json:"login"`
+}
+
+type Editor struct {
+	ID       int64  `json:"id"`
+	Login    string `json:"login"`
+	PassHash []byte `json:"pass"`
+}
+
+const (
+	ErrEditorID int64 = -2
+
+	RootID    int64 = -1
+	RootLogin       = "root"
+)
 
 type Media struct {
 	ID       int64
