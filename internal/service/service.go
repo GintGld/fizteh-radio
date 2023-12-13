@@ -9,4 +9,6 @@ var (
 
 	ErrInvalidToken = errors.New("invalid token")
 	ErrTimeoutToken = errors.New("timeout token")
+
+	ErrMediaNotFound = errors.New("editor not found")
 )
