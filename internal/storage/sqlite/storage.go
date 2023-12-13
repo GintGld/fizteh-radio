@@ -164,7 +164,7 @@ func (s *Storage) DeleteEditor(ctx context.Context, id int64) error {
 
 // SaveMedia saves necessary information
 // about media file to db.
-func (s *Storage) SaveMedia(ctx context.Context, name string, author string, duration time.Duration) (int64, error) {
+func (s *Storage) SaveMedia(ctx context.Context, media models.Media) (int64, error) {
 	const op = "storage.sqlite.SaveMedia"
 
 	stmt, err := s.db.Prepare("INSERT INTO library(name, author, duration) VALUES(?, ?, ?)")
@@ -173,7 +173,7 @@ func (s *Storage) SaveMedia(ctx context.Context, name string, author string, dur
 	}
 	defer stmt.Close()
 
-	res, err := stmt.ExecContext(ctx, name, author, (int64)(duration))
+	res, err := stmt.ExecContext(ctx, media.Name, media.Author, media.Duration.Milliseconds())
 	if err != nil {
 		var sqliteErr sqlite3.Error
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
@@ -195,7 +195,7 @@ func (s *Storage) SaveMedia(ctx context.Context, name string, author string, dur
 func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 	const op = "storage.sqlite.Media"
 
-	stmt, err := s.db.Prepare("SELECT id, name, author, duration FROM editors WHERE id = ?")
+	stmt, err := s.db.Prepare("SELECT id, name, author, duration FROM library WHERE id = ?")
 	if err != nil {
 		return models.Media{}, fmt.Errorf("%s: %w", op, err)
 	}
@@ -204,9 +204,9 @@ func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 	row := stmt.QueryRowContext(ctx, id)
 
 	var media models.Media
-	var durationInt int64
+	var durationMs int64
 
-	err = row.Scan(&media.ID, &media.Name, &media.Author, &durationInt)
+	err = row.Scan(&media.ID, &media.Name, &media.Author, &durationMs)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.Media{}, fmt.Errorf("%s: %w", op, storage.ErrMediaNotFound)
@@ -215,7 +215,7 @@ func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 		return models.Media{}, fmt.Errorf("%s: %w", op, err)
 	}
 
-	media.Duration = time.Duration(durationInt)
+	media.Duration = time.Duration(durationMs) * time.Millisecond
 
 	return media, nil
 }
@@ -230,14 +230,16 @@ func (s *Storage) DeleteMedia(ctx context.Context, id int64) error {
 	}
 	defer stmt.Close()
 
-	_, err = stmt.ExecContext(ctx, id)
+	res, err := stmt.ExecContext(ctx, id)
 	if err != nil {
-		var sqliteErr sqlite3.Error
-		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
-			return fmt.Errorf("%s: %w", op, storage.ErrMediaNotFound)
-		}
-
 		return fmt.Errorf("%s: %w", op, err)
+	}
+	affectedRows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	if affectedRows == 0 {
+		return storage.ErrMediaNotFound
 	}
 
 	return nil
