@@ -10,7 +10,6 @@ import (
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/internal/service"
 	"github.com/GintGld/fizteh-radio/internal/storage"
-	"github.com/gofiber/fiber/v2/log"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -19,10 +18,10 @@ import (
 
 type Root struct {
 	log        *slog.Logger
-	usrManager EditorManager
+	edtStorage EditorStorage
 }
 
-type EditorManager interface {
+type EditorStorage interface {
 	SaveEditor(
 		ctx context.Context,
 		login string,
@@ -35,11 +34,11 @@ type EditorManager interface {
 
 func New(
 	log *slog.Logger,
-	usrManager EditorManager,
+	edtStorage EditorStorage,
 ) *Root {
 	return &Root{
 		log:        log,
-		usrManager: usrManager,
+		edtStorage: edtStorage,
 	}
 }
 
@@ -49,7 +48,12 @@ func New(
 func (r *Root) RegisterNewEditor(ctx context.Context, form models.EditorIn) (int64, error) {
 	const op = "Root.RegisterNewEditor"
 
-	r.log.Info("registering editor")
+	log := r.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	log.Info("registering editor")
 
 	passHash, err := bcrypt.GenerateFromPassword([]byte(form.Pass), bcrypt.DefaultCost)
 	if err != nil {
@@ -58,34 +62,41 @@ func (r *Root) RegisterNewEditor(ctx context.Context, form models.EditorIn) (int
 		return models.ErrEditorID, fmt.Errorf("%s: %w", op, err)
 	}
 
-	id, err := r.usrManager.SaveEditor(ctx, form.Login, passHash)
+	id, err := r.edtStorage.SaveEditor(ctx, form.Login, passHash)
 	if err != nil {
 		if errors.Is(err, storage.ErrEditorExists) {
-			r.log.Warn("editor exists", slog.String("login", form.Login))
+			log.Warn("editor exists", slog.String("login", form.Login))
 			return models.ErrEditorID, fmt.Errorf("%s: %w", op, service.ErrEditorExists)
 		}
-		r.log.Error("failed to save editor", sl.Err(err))
+		log.Error("failed to save editor", sl.Err(err))
 
 		return models.ErrEditorID, fmt.Errorf("%s: %w", op, err)
 	}
 
-	r.log.Info("registered editor", slog.String("login", form.Login), slog.Int64("id", id))
+	log.Info("registered editor", slog.String("login", form.Login), slog.Int64("id", id))
 
 	return id, nil
 }
 
-// DeleteEditor deletes editor
+// DeleteEditor deletes editor.
+//
+// If editor with given name already exists, returns error.
 func (r *Root) DeleteEditor(ctx context.Context, id int64) error {
 	const op = "Root.DeleteEditor"
 
-	r.log.Info("deleting editor", slog.Int64("id", id))
+	log := r.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
 
-	if err := r.usrManager.DeleteEditor(ctx, id); err != nil {
+	log.Info("deleting editor", slog.Int64("id", id))
+
+	if err := r.edtStorage.DeleteEditor(ctx, id); err != nil {
 		if errors.Is(err, storage.ErrEditorNotFound) {
-			r.log.Warn("editor not found", slog.Int64("id", id))
+			log.Warn("editor not found", slog.Int64("id", id))
 			return fmt.Errorf("%s: %w", op, service.ErrEditorNotFound)
 		}
-
+		log.Error("failed to delete editor", slog.Int64("id", id))
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -94,23 +105,28 @@ func (r *Root) DeleteEditor(ctx context.Context, id int64) error {
 
 // Editor returns editor model by given id.
 //
-// If editor with given id does not exist, returns error
+// If editor with given id does not exist, returns error.
 func (r *Root) Editor(ctx context.Context, id int64) (models.EditorOut, error) {
 	const op = "Root.Editor"
 
-	r.log.Info("getting editor", slog.Int64("id", id))
+	log := r.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
 
-	editor, err := r.usrManager.Editor(ctx, id)
+	log.Info("getting editor", slog.Int64("id", id))
+
+	editor, err := r.edtStorage.Editor(ctx, id)
 	if err != nil {
 		if errors.Is(err, storage.ErrEditorNotFound) {
 			r.log.Warn("editor not found", slog.Int64("id", id))
 			return models.EditorOut{}, fmt.Errorf("%s: %w", op, service.ErrEditorNotFound)
 		}
-		r.log.Error("failed to get editor", sl.Err(err))
+		log.Error("failed to get editor", sl.Err(err))
 		return models.EditorOut{}, fmt.Errorf("%s: %w", op, err)
 	}
 
-	r.log.Info("found editor", slog.Int64("id", id))
+	log.Info("found editor", slog.Int64("id", id))
 	return models.EditorOut{
 		ID:    editor.ID,
 		Login: editor.Login,
@@ -119,15 +135,20 @@ func (r *Root) Editor(ctx context.Context, id int64) (models.EditorOut, error) {
 
 // AllEditors returns all editors.
 //
-// If there is no any editor, returns empty slice
+// If there is no any editor, returns empty slice.
 func (r *Root) AllEditors(ctx context.Context) ([]models.EditorOut, error) {
 	const op = "Root.AllEditors"
 
-	r.log.Info("getting all editors")
+	log := r.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
 
-	editors, err := r.usrManager.AllEditors(ctx)
+	log.Info("getting all editors")
+
+	editors, err := r.edtStorage.AllEditors(ctx)
 	if err != nil {
-		r.log.Error("failed to get editors", sl.Err(err))
+		log.Error("failed to get editors", sl.Err(err))
 		return []models.EditorOut{}, fmt.Errorf("%s: %w", op, err)
 	}
 
