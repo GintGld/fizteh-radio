@@ -1,0 +1,220 @@
+openapi: 3.0.3
+info:
+  title: Swagger Petstore - OpenAPI 3.0
+  description: |-
+    This is a Phystech Radio specification.
+  version: 0.0.1
+servers:
+  - url: http://localhost:8082
+tags:
+  - name: Auth
+  - name: 'Root: Editors'
+
+paths:
+  /login:
+    post:
+      tags:
+        - Auth
+      summary: login editor
+      requestBody:
+        description: Login form
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginForm"
+      responses:
+        '200':
+          description: Successful authentification
+          content:
+            application/json:
+              schema:
+                description: JWT
+                type: object
+                properties:
+                  token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+        '400':
+          description: Invalid credentials
+          content:
+            aplication/json:
+              schema:
+                type: object
+                properties: 
+                  error:
+                    type: string
+                    enum:
+                      - 'invalid credentials'
+                      - 'login required'
+                      - 'password required'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /root/editors:
+    
+    get:
+      description: Get all users
+      tags:
+        - 'Root: Editors'
+      security:
+        - rootAuth: []
+      responses:
+        '200':
+          description: All users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Editors'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      description: Create new editor
+      tags:
+        - 'Root: Editors'
+      security:
+        - rootAuth: []
+      responses:
+        '200':
+          description: Successfully created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 1
+        '400':
+          description: Editor exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      - editor exists
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /root/editor/{id}:
+    parameters:
+      -
+        $ref: '#/components/parameters/ID'
+    get:
+      description: Get editor by id
+      tags:
+        - 'Root: Editors'
+      security:
+        - rootAuth: []
+      responses:
+        '200':
+          description: Found editor
+          content: 
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Editor'
+        '400':
+          description: Editor not found
+          content: 
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      - 'bad id'
+                      - 'editor not found'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      description: Delete editor by id
+      tags:
+        - 'Root: Editors'
+      security:
+        - rootAuth: []
+      responses:
+        '200':
+          description: Found editor
+          content: 
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Editor'
+        '400':
+          description: Editor not found
+          content: 
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      - 'bad id'
+                      - 'editor not found'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+
+components:
+  schemas:
+    LoginForm:
+      type: object
+      required:
+        - login
+        - pass
+      properties:
+        login:
+          type: string
+          example: user
+        pass:
+          type: string
+          example: password
+    Editor:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        login:
+          type: string
+          example: "user"
+    Editors:
+      type: array
+      items:
+        $ref: '#/components/schemas/Editor'
+
+  responses: 
+    InternalServerError:
+      description: Internal Server Error
+    Unauthorized:
+      description: Need authorization
+
+  parameters: 
+    JWT:
+      name: Authorisation
+      in: header
+      description: token
+      required: true
+      schema:
+        type: string
+    ID: 
+      name: id
+      in: path
+      description: ID
+      required: true
+      schema:
+        type: integer
+        format: int64
+  
+  securitySchemes:
+    rootAuth:
+      description: root access
+      type: http
+      bearerFormat: JWT
+      scheme: bearer
