@@ -43,13 +43,13 @@ func (authCtr *authController) login(c *fiber.Ctx) error {
 	}
 
 	if form.Login == "" {
-		c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "login required",
 		})
 	}
 
 	if form.Pass == "" {
-		c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "password required",
 		})
 	}
@@ -57,12 +57,12 @@ func (authCtr *authController) login(c *fiber.Ctx) error {
 	token, err := authCtr.srv.Login(context.TODO(), form.Login, form.Pass)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
-			c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "invalid credentials",
 			})
 		}
 
-		c.Status(fiber.StatusInternalServerError)
+		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{

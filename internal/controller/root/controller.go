@@ -4,13 +4,18 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 
 	jwtController "github.com/GintGld/fizteh-radio/internal/controller/jwt"
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/internal/service"
 )
+
+// TODO: move access check to special controller
+// TODO: /editor PUT
 
 // New returns fiber app that will
 // handle requests special for root
@@ -21,12 +26,13 @@ func New(rootSrv Root, jwtC *jwtController.JWT) *fiber.App {
 
 	app := fiber.New()
 
-	app.Use(rootCtr.rootAccess, jwtC.AuthRequired())
+	// token validity -> root access -> handling request
+	app.Use(jwtC.AuthRequired(), rootCtr.rootAccess)
 
-	app.Get("/", rootCtr.allEditors)
-	app.Get("/:id", rootCtr.editor)
-	app.Post("/", rootCtr.newEditor)
-	app.Delete("/:id", rootCtr.deleteEditor)
+	app.Get("/editors", rootCtr.allEditors)
+	app.Post("/editors", rootCtr.newEditor)
+	app.Get("/editor/:id", rootCtr.editor)
+	app.Delete("/editor/:id", rootCtr.deleteEditor)
 
 	return app
 }
@@ -42,17 +48,31 @@ type Root interface {
 	DeleteEditor(ctx context.Context, id int64) error
 }
 
-// rootAccess check if the logged user is root
+// rootAccess check if the logged user is root,
+// but doesn't check validity, because only jwtWare
+// has access to the secret
 func (rootCtr *rootController) rootAccess(c *fiber.Ctx) error {
-	form := new(models.EditorIn)
+	auth := c.Get(fiber.HeaderAuthorization)
 
-	if err := c.BodyParser(form); err != nil {
-		return fiber.ErrBadRequest
+	jwtSplitted := strings.Split(auth, " ")
+	if len(jwtSplitted) != 2 || jwtSplitted[0] != "Bearer" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid JWT",
+		})
 	}
 
-	if form.Login != models.RootLogin {
+	token := jwtSplitted[1]
+	claims := jwt.MapClaims{}
+	_, _, err := jwt.NewParser().ParseUnverified(token, claims)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid JWT",
+		})
+	}
+
+	if claims["login"] != models.RootLogin {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "authorization error",
+			"error": "available for root only",
 		})
 	}
 
@@ -101,8 +121,7 @@ func (rootCtr *rootController) editor(c *fiber.Ctx) error {
 // newEditor creates new editor
 func (rootCtr *rootController) newEditor(c *fiber.Ctx) error {
 	type request struct {
-		Login string          `json:"login"` // TODO: fix root login
-		User  models.EditorIn `json:"editor"`
+		User models.EditorIn `json:"editor"`
 	}
 
 	form := new(request)

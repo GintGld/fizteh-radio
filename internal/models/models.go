@@ -2,6 +2,8 @@ package models
 
 import "time"
 
+// TODO: split into different files when become too big
+
 type EditorIn struct {
 	Login string `json:"login"`
 	Pass  string `json:"pass"`

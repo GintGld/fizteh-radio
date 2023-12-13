@@ -88,7 +88,7 @@ func (a *Auth) loginRoot(ctx context.Context, password string) (string, error) {
 	if err := bcrypt.CompareHashAndPassword(a.rootPassHash, []byte(password)); err != nil {
 		log.Info("invalid credentials", sl.Err(err))
 
-		return "", fmt.Errorf("%s: %w", op, service.ErrEditorNotFound)
+		return "", fmt.Errorf("%s: %w", op, service.ErrInvalidCredentials)
 	}
 
 	log.Info("root logged successfully")

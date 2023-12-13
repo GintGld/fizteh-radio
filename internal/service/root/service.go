@@ -98,7 +98,7 @@ func (r *Root) DeleteEditor(ctx context.Context, id int64) error {
 func (r *Root) Editor(ctx context.Context, id int64) (models.EditorOut, error) {
 	const op = "Root.Editor"
 
-	r.log.Info("deleting editor", slog.Int64("id", id))
+	r.log.Info("getting editor", slog.Int64("id", id))
 
 	editor, err := r.usrManager.Editor(ctx, id)
 	if err != nil {

@@ -27,6 +27,7 @@ func main() {
 	log.Debug("debug messages are enabled")
 
 	// TODO: init httpApplication: fiber
+	// TODO: send timeout and iddletimeout
 	httpApplication := app.New(
 		log,
 		cfg.Address,

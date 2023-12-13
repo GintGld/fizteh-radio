@@ -147,14 +147,16 @@ func (s *Storage) DeleteEditor(ctx context.Context, id int64) error {
 	}
 	defer stmt.Close()
 
-	_, err = stmt.ExecContext(ctx, id)
+	res, err := stmt.ExecContext(ctx, id)
 	if err != nil {
-		var sqliteErr sqlite3.Error
-		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
-			return fmt.Errorf("%s: %w", op, storage.ErrEditorNotFound)
-		}
-
 		return fmt.Errorf("%s: %w", op, err)
+	}
+	affectedRows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	if affectedRows == 0 {
+		return storage.ErrEditorNotFound
 	}
 
 	return nil
