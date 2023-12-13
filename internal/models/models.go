@@ -28,10 +28,10 @@ const (
 )
 
 type Media struct {
-	ID       int64
-	Name     string
-	Author   string
-	Duration time.Duration
+	ID       int64         `json:"id"`
+	Name     string        `json:"name"`
+	Author   string        `json:"author"`
+	Duration time.Duration `json:"duration"`
 }
 
 type Segment struct {
