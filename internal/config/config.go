@@ -9,16 +9,22 @@ import (
 )
 
 type Config struct {
-	Env         string        `yaml:"env" env-required:"true"`
-	StoragePath string        `yaml:"storage_path" env-required:"true"`
-	TokenTTL    time.Duration `yaml:"token_ttl" env-default:"1h"`
-	HTTPServer  `yaml:"http_server"`
+	Env           string        `yaml:"env" env-required:"true"`
+	StoragePath   string        `yaml:"storage_path" env-required:"true"`
+	TokenTTL      time.Duration `yaml:"token_ttl" env-default:"1h"`
+	HTTPServer    `yaml:"http_server"`
+	SourceStorage `yaml:"source_storage"`
 }
 
 type HTTPServer struct {
 	Address      string        `yaml:"address" env-default:"localhost:8080"`
 	Timeout      time.Duration `yaml:"timeout" end-default:"4s"`
 	IddleTimeout time.Duration `yaml:"idle_timeout" env-default:"60s"`
+	TmpDir       string        `yaml:"tmp_dir" env-default:"./tmp"`
+}
+
+type SourceStorage struct {
+	SourcePath string `yaml:"path" env-required:"true"`
 }
 
 func MustLoad() *Config {

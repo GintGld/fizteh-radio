@@ -21,17 +21,18 @@ type Editor struct {
 }
 
 const (
-	ErrEditorID int64 = -2
+	ErrEditorID int64 = 0
 
 	RootID    int64 = -1
 	RootLogin       = "root"
 )
 
 type Media struct {
-	ID       int64         `json:"id"`
-	Name     string        `json:"name"`
-	Author   string        `json:"author"`
-	Duration time.Duration `json:"duration"`
+	ID       *int64         `json:"id"`
+	Name     *string        `json:"name"`
+	Author   *string        `json:"author"`
+	Duration *time.Duration `json:"duration"`
+	SourceID *int64         `json:"-"`
 }
 
 type Segment struct {

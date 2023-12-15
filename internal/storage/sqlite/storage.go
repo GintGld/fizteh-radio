@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/internal/storage"
 	"github.com/mattn/go-sqlite3"
@@ -167,13 +168,13 @@ func (s *Storage) DeleteEditor(ctx context.Context, id int64) error {
 func (s *Storage) SaveMedia(ctx context.Context, media models.Media) (int64, error) {
 	const op = "storage.sqlite.SaveMedia"
 
-	stmt, err := s.db.Prepare("INSERT INTO library(name, author, duration) VALUES(?, ?, ?)")
+	stmt, err := s.db.Prepare("INSERT INTO library(name, author, duration, source_id) VALUES(?, ?, ?, ?)")
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 	defer stmt.Close()
 
-	res, err := stmt.ExecContext(ctx, media.Name, media.Author, media.Duration.Milliseconds())
+	res, err := stmt.ExecContext(ctx, *media.Name, *media.Author, media.Duration.Milliseconds(), *media.SourceID)
 	if err != nil {
 		var sqliteErr sqlite3.Error
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
@@ -195,7 +196,7 @@ func (s *Storage) SaveMedia(ctx context.Context, media models.Media) (int64, err
 func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 	const op = "storage.sqlite.Media"
 
-	stmt, err := s.db.Prepare("SELECT id, name, author, duration FROM library WHERE id = ?")
+	stmt, err := s.db.Prepare("SELECT name, author, duration, source_id FROM library WHERE id = ?")
 	if err != nil {
 		return models.Media{}, fmt.Errorf("%s: %w", op, err)
 	}
@@ -203,10 +204,13 @@ func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 
 	row := stmt.QueryRowContext(ctx, id)
 
-	var media models.Media
-	var durationMs int64
+	var (
+		sourceID     int64
+		name, author string
+		durationMs   int64
+	)
 
-	err = row.Scan(&media.ID, &media.Name, &media.Author, &durationMs)
+	err = row.Scan(&name, &author, &durationMs, &sourceID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.Media{}, fmt.Errorf("%s: %w", op, storage.ErrMediaNotFound)
@@ -215,7 +219,13 @@ func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 		return models.Media{}, fmt.Errorf("%s: %w", op, err)
 	}
 
-	media.Duration = time.Duration(durationMs) * time.Millisecond
+	var media models.Media
+
+	media.ID = &id
+	media.SourceID = &sourceID
+	media.Name = &name
+	media.Author = &author
+	media.Duration = pointers.Pointer(time.Duration(durationMs) * time.Millisecond)
 
 	return media, nil
 }

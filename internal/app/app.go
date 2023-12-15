@@ -21,6 +21,8 @@ func New(
 	tokenTTL time.Duration,
 	secret []byte,
 	rootPass []byte,
+	tmpDir string,
+	sourceDir string,
 ) *App {
 	storage, err := sqlite.New(storagePath)
 	if err != nil {
@@ -35,6 +37,8 @@ func New(
 		tokenTTL,
 		secret,
 		rootPass,
+		tmpDir,
+		sourceDir,
 	)
 
 	return &App{

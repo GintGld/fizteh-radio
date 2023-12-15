@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS library
     id          INTEGER PRIMARY KEY,
     name        TEXT NOT NULL,
     author      TEXT NOT NULL,
-    duration    INTEGER
+    duration    INTEGER,
+    source_id   INTEGER UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS schedule

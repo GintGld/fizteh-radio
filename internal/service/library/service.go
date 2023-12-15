@@ -33,6 +33,8 @@ func New(
 	}
 }
 
+// TODO: in logging save editor name (put on context)
+
 // NewMedia registers new editor in the system and returns media ID.
 func (l *Library) NewMedia(ctx context.Context, newMedia models.Media) (int64, error) {
 	const op = "Library.NewMedia"
@@ -53,8 +55,9 @@ func (l *Library) NewMedia(ctx context.Context, newMedia models.Media) (int64, e
 	log.Info(
 		"registered media",
 		slog.Int64("id", id),
-		slog.String("name", newMedia.Name),
-		slog.String("author", newMedia.Author),
+		slog.String("name", *newMedia.Name),
+		slog.String("author", *newMedia.Author),
+		slog.Int64("sourceID", *newMedia.SourceID),
 	)
 
 	return id, nil

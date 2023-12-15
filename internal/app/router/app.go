@@ -11,6 +11,7 @@ import (
 	jwtSrv "github.com/GintGld/fizteh-radio/internal/service/jwt"
 	libSrv "github.com/GintGld/fizteh-radio/internal/service/library"
 	rootSrv "github.com/GintGld/fizteh-radio/internal/service/root"
+	srcSrv "github.com/GintGld/fizteh-radio/internal/service/source"
 
 	authCtr "github.com/GintGld/fizteh-radio/internal/controller/auth"
 	jwtCtr "github.com/GintGld/fizteh-radio/internal/controller/jwt"
@@ -34,6 +35,8 @@ func New(
 	tokenTTL time.Duration,
 	secret []byte,
 	rootPass []byte,
+	tmpDir string,
+	sourceDir string,
 ) *App {
 	// Create sevices
 	jwt := jwtSrv.New(secret)
@@ -60,6 +63,11 @@ func New(
 		storage,
 	)
 
+	src := srcSrv.New(
+		log,
+		sourceDir,
+	)
+
 	// Create controller helper
 	jwtCtr := jwtCtr.New(secret)
 
@@ -68,7 +76,7 @@ func New(
 	// Mount controllers to an app
 	app.Mount("/login", authCtr.New(auth))
 	app.Mount("/root", rootCtr.New(root, jwtCtr))
-	app.Mount("/library", libCtr.New(lib, jwtCtr))
+	app.Mount("/library", libCtr.New(lib, src, jwtCtr, tmpDir))
 
 	return &App{
 		log:     log,

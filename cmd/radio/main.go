@@ -26,15 +26,16 @@ func main() {
 	log.Info("starting radio", slog.String("env", cfg.Env))
 	log.Debug("debug messages are enabled")
 
-	// TODO: init httpApplication: fiber
 	// TODO: send timeout and iddletimeout
 	httpApplication := app.New(
 		log,
 		cfg.Address,
 		cfg.StoragePath,
 		cfg.TokenTTL,
-		getSecret(),   // TODO
-		getRootPass(), // TODO
+		getSecret(),
+		getRootPass(),
+		cfg.TmpDir,
+		cfg.SourcePath,
 	)
 
 	// TODO: init scheduler: DASH
