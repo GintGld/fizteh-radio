@@ -13,9 +13,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// TODO: move here some functions from auth that will
-// be accessible only from root interface
-
 type Root struct {
 	log        *slog.Logger
 	edtStorage EditorStorage

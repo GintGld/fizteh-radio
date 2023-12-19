@@ -20,6 +20,7 @@ type Editor struct {
 	PassHash []byte `json:"pass"`
 }
 
+// TODO: change ErrEditorId to just 0
 const (
 	ErrEditorID int64 = 0
 

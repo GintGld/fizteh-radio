@@ -15,7 +15,7 @@ import (
 )
 
 // TODO: move access check to special controller
-// TODO: /editor PUT
+// TODO: /editor PUT (change editor info instead of create/delete)
 
 // New returns fiber app that will
 // handle requests special for root
