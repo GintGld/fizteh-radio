@@ -15,47 +15,45 @@ import (
 	"github.com/GintGld/fizteh-radio/internal/service"
 )
 
-// TODO: GET "/media" or "/library"
-
 func New(
-	libSrv Library,
-	srvSrc SourceStorage,
+	srvMedia Media,
+	srvSrc Source,
 	jwtC *jwtController.JWT,
 	tmpDir string,
 ) *fiber.App {
-	libCtr := libraryController{
-		srvLib: libSrv,
-		srvSrc: srvSrc,
-		tmpDir: tmpDir,
+	mediaCtr := mediaController{
+		srvMedia: srvMedia,
+		srvSrc:   srvSrc,
+		tmpDir:   tmpDir,
 	}
 
 	app := fiber.New()
 
 	app.Use(jwtC.AuthRequired())
 
-	app.Get("/media", libCtr.allMedia)
-	app.Post("/media", libCtr.newMedia)
-	app.Get("/media/:id", libCtr.media)
-	app.Get("/source/:id", libCtr.source)
-	app.Delete("/media/:id", libCtr.deleteMedia)
+	app.Get("/media", mediaCtr.allMedia)
+	app.Post("/media", mediaCtr.newMedia)
+	app.Get("/media/:id", mediaCtr.media)
+	app.Get("/source/:id", mediaCtr.source)
+	app.Delete("/media/:id", mediaCtr.deleteMedia)
 
 	return app
 }
 
-type libraryController struct {
-	srvLib Library
-	srvSrc SourceStorage
-	tmpDir string
+type mediaController struct {
+	srvMedia Media
+	srvSrc   Source
+	tmpDir   string
 }
 
-type Library interface {
+type Media interface {
 	AllMedia(ctx context.Context) ([]models.Media, error)
 	NewMedia(ctx context.Context, newMedia models.Media) (int64, error)
 	Media(ctx context.Context, id int64) (models.Media, error)
 	DeleteMedia(ctx context.Context, id int64) error
 }
 
-type SourceStorage interface {
+type Source interface {
 	UploadSource(ctx context.Context, path string, media *models.Media) error
 	LoadSource(ctx context.Context, destDir string, media models.Media) (string, error)
 	DeleteSource(ctx context.Context, media models.Media) error
@@ -63,9 +61,9 @@ type SourceStorage interface {
 
 // TODO: add support for AAC, WAV
 
-// library returns all media
-func (libCtr *libraryController) allMedia(c *fiber.Ctx) error {
-	lib, err := libCtr.srvLib.AllMedia(context.TODO())
+// allMedia returns all media
+func (mediaCtr *mediaController) allMedia(c *fiber.Ctx) error {
+	lib, err := mediaCtr.srvMedia.AllMedia(context.TODO())
 	if err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -76,7 +74,7 @@ func (libCtr *libraryController) allMedia(c *fiber.Ctx) error {
 }
 
 // newMedia saves sended file and creates media
-func (libCtr *libraryController) newMedia(c *fiber.Ctx) error {
+func (mediaCtr *mediaController) newMedia(c *fiber.Ctx) error {
 	payload := c.FormValue("media")
 	if payload == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -147,7 +145,7 @@ func (libCtr *libraryController) newMedia(c *fiber.Ctx) error {
 		}
 	}
 
-	tmpFile, err := os.CreateTemp(libCtr.tmpDir, "*.mp3")
+	tmpFile, err := os.CreateTemp(mediaCtr.tmpDir, "*.mp3")
 	if err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -162,11 +160,11 @@ func (libCtr *libraryController) newMedia(c *fiber.Ctx) error {
 	// TODO: move this code to goroutine
 
 	// TODO: enhance error statuses
-	if err := libCtr.srvSrc.UploadSource(context.TODO(), tmpFileName, &media); err != nil {
+	if err := mediaCtr.srvSrc.UploadSource(context.TODO(), tmpFileName, &media); err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	id, err := libCtr.srvLib.NewMedia(context.TODO(), media)
+	id, err := mediaCtr.srvMedia.NewMedia(context.TODO(), media)
 	if err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -177,7 +175,7 @@ func (libCtr *libraryController) newMedia(c *fiber.Ctx) error {
 }
 
 // media return json with media by id
-func (libCtr *libraryController) media(c *fiber.Ctx) error {
+func (mediaCtr *mediaController) media(c *fiber.Ctx) error {
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -185,7 +183,7 @@ func (libCtr *libraryController) media(c *fiber.Ctx) error {
 		})
 	}
 
-	media, err := libCtr.srvLib.Media(context.TODO(), id)
+	media, err := mediaCtr.srvMedia.Media(context.TODO(), id)
 	if err != nil {
 		if errors.Is(err, service.ErrMediaNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -202,7 +200,7 @@ func (libCtr *libraryController) media(c *fiber.Ctx) error {
 
 // source returns source file
 // corresponding to media
-func (libCtr *libraryController) source(c *fiber.Ctx) error {
+func (mediaCtr *mediaController) source(c *fiber.Ctx) error {
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -210,7 +208,7 @@ func (libCtr *libraryController) source(c *fiber.Ctx) error {
 		})
 	}
 
-	media, err := libCtr.srvLib.Media(context.TODO(), id)
+	media, err := mediaCtr.srvMedia.Media(context.TODO(), id)
 	if err != nil {
 		if errors.Is(err, service.ErrMediaNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -221,7 +219,7 @@ func (libCtr *libraryController) source(c *fiber.Ctx) error {
 	}
 
 	// TODO: enhance error statuses
-	sourceFile, err := libCtr.srvSrc.LoadSource(context.TODO(), libCtr.tmpDir, media)
+	sourceFile, err := mediaCtr.srvSrc.LoadSource(context.TODO(), mediaCtr.tmpDir, media)
 	if err != nil {
 		c.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -230,7 +228,7 @@ func (libCtr *libraryController) source(c *fiber.Ctx) error {
 }
 
 // deleteEditor deletes editor
-func (libCtr *libraryController) deleteMedia(c *fiber.Ctx) error {
+func (mediaCtr *mediaController) deleteMedia(c *fiber.Ctx) error {
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -239,7 +237,7 @@ func (libCtr *libraryController) deleteMedia(c *fiber.Ctx) error {
 	}
 
 	// TODO: enhance error statuses
-	media, err := libCtr.srvLib.Media(context.TODO(), id)
+	media, err := mediaCtr.srvMedia.Media(context.TODO(), id)
 	if err != nil {
 		if errors.Is(err, service.ErrMediaNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -250,11 +248,11 @@ func (libCtr *libraryController) deleteMedia(c *fiber.Ctx) error {
 	}
 
 	// TODO: enhance error statuses
-	if err = libCtr.srvSrc.DeleteSource(context.TODO(), media); err != nil {
+	if err = mediaCtr.srvSrc.DeleteSource(context.TODO(), media); err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	if err = libCtr.srvLib.DeleteMedia(context.TODO(), id); err != nil {
+	if err = mediaCtr.srvMedia.DeleteMedia(context.TODO(), id); err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 

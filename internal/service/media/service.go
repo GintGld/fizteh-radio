@@ -12,12 +12,12 @@ import (
 	"github.com/GintGld/fizteh-radio/internal/storage"
 )
 
-type Library struct {
-	log        *slog.Logger
-	libStorage LibraryStorage
+type MediaLibrary struct {
+	log          *slog.Logger
+	mediaStorage MediaStorage
 }
 
-type LibraryStorage interface {
+type MediaStorage interface {
 	AllMedia(ctx context.Context) ([]models.Media, error)
 	SaveMedia(ctx context.Context, newMedia models.Media) (int64, error)
 	Media(ctx context.Context, id int64) (models.Media, error)
@@ -26,18 +26,18 @@ type LibraryStorage interface {
 
 func New(
 	log *slog.Logger,
-	libStorage LibraryStorage,
-) *Library {
-	return &Library{
-		log:        log,
-		libStorage: libStorage,
+	mediaStorage MediaStorage,
+) *MediaLibrary {
+	return &MediaLibrary{
+		log:          log,
+		mediaStorage: mediaStorage,
 	}
 }
 
 // TODO: in logging save editor name (put on context)
 
-func (l *Library) AllMedia(ctx context.Context) ([]models.Media, error) {
-	const op = "Library.AllMedia"
+func (l *MediaLibrary) AllMedia(ctx context.Context) ([]models.Media, error) {
+	const op = "MediaLibrary.AllMedia"
 
 	log := l.log.With(
 		slog.String("op", op),
@@ -46,7 +46,7 @@ func (l *Library) AllMedia(ctx context.Context) ([]models.Media, error) {
 
 	log.Info("getting all media")
 
-	media, err := l.libStorage.AllMedia(ctx)
+	media, err := l.mediaStorage.AllMedia(ctx)
 	if err != nil {
 		if errors.Is(err, storage.ErrMediaNotFound) {
 			log.Warn("media not found")
@@ -62,8 +62,8 @@ func (l *Library) AllMedia(ctx context.Context) ([]models.Media, error) {
 }
 
 // NewMedia registers new editor in the system and returns media ID.
-func (l *Library) NewMedia(ctx context.Context, newMedia models.Media) (int64, error) {
-	const op = "Library.NewMedia"
+func (l *MediaLibrary) NewMedia(ctx context.Context, newMedia models.Media) (int64, error) {
+	const op = "MediaLibrary.NewMedia"
 
 	log := l.log.With(
 		slog.String("op", op),
@@ -72,7 +72,7 @@ func (l *Library) NewMedia(ctx context.Context, newMedia models.Media) (int64, e
 
 	log.Info("registering new media")
 
-	id, err := l.libStorage.SaveMedia(ctx, newMedia)
+	id, err := l.mediaStorage.SaveMedia(ctx, newMedia)
 	if err != nil {
 		log.Error("failed to save media", sl.Err(err))
 		return models.ErrEditorID, fmt.Errorf("%s: %w", op, err)
@@ -92,8 +92,8 @@ func (l *Library) NewMedia(ctx context.Context, newMedia models.Media) (int64, e
 // Media returns media model by given id.
 //
 // If media with given id does not exist, returns error.
-func (l *Library) Media(ctx context.Context, id int64) (models.Media, error) {
-	const op = "Library.Media"
+func (l *MediaLibrary) Media(ctx context.Context, id int64) (models.Media, error) {
+	const op = "MediaLibrary.Media"
 
 	log := l.log.With(
 		slog.String("op", op),
@@ -102,7 +102,7 @@ func (l *Library) Media(ctx context.Context, id int64) (models.Media, error) {
 
 	log.Info("getting media")
 
-	media, err := l.libStorage.Media(ctx, id)
+	media, err := l.mediaStorage.Media(ctx, id)
 	if err != nil {
 		if errors.Is(err, storage.ErrMediaNotFound) {
 			log.Warn("media not found", slog.Int64("id", id))
@@ -120,8 +120,8 @@ func (l *Library) Media(ctx context.Context, id int64) (models.Media, error) {
 // DeleteMedia deletes media.
 //
 // If media with given id does not exist, returns error.
-func (l *Library) DeleteMedia(ctx context.Context, id int64) error {
-	const op = "Library.DeleteEditor"
+func (l *MediaLibrary) DeleteMedia(ctx context.Context, id int64) error {
+	const op = "MediaLibrary.DeleteEditor"
 
 	log := l.log.With(
 		slog.String("op", op),
@@ -130,7 +130,7 @@ func (l *Library) DeleteMedia(ctx context.Context, id int64) error {
 
 	log.Info("deleting media", slog.Int64("id", id))
 
-	if err := l.libStorage.DeleteMedia(ctx, id); err != nil {
+	if err := l.mediaStorage.DeleteMedia(ctx, id); err != nil {
 		if errors.Is(err, storage.ErrMediaNotFound) {
 			log.Warn("media not found", slog.Int64("id", id))
 			return fmt.Errorf("%s: %w", op, service.ErrMediaNotFound)
