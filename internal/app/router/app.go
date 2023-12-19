@@ -5,20 +5,19 @@ import (
 	"time"
 
 	"github.com/GintGld/fizteh-radio/internal/storage/sqlite"
+	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
 
 	authSrv "github.com/GintGld/fizteh-radio/internal/service/auth"
 	jwtSrv "github.com/GintGld/fizteh-radio/internal/service/jwt"
-	libSrv "github.com/GintGld/fizteh-radio/internal/service/library"
+	mediaSrv "github.com/GintGld/fizteh-radio/internal/service/media"
 	rootSrv "github.com/GintGld/fizteh-radio/internal/service/root"
 	srcSrv "github.com/GintGld/fizteh-radio/internal/service/source"
 
 	authCtr "github.com/GintGld/fizteh-radio/internal/controller/auth"
 	jwtCtr "github.com/GintGld/fizteh-radio/internal/controller/jwt"
-	libCtr "github.com/GintGld/fizteh-radio/internal/controller/library"
+	mediaCtr "github.com/GintGld/fizteh-radio/internal/controller/media"
 	rootCtr "github.com/GintGld/fizteh-radio/internal/controller/root"
-
-	"github.com/gofiber/fiber/v2"
 )
 
 type App struct {
@@ -58,7 +57,7 @@ func New(
 		storage,
 	)
 
-	lib := libSrv.New(
+	lib := mediaSrv.New(
 		log,
 		storage,
 	)
@@ -76,7 +75,7 @@ func New(
 	// Mount controllers to an app
 	app.Mount("/login", authCtr.New(auth))
 	app.Mount("/root", rootCtr.New(root, jwtCtr))
-	app.Mount("/library", libCtr.New(lib, src, jwtCtr, tmpDir))
+	app.Mount("/library", mediaCtr.New(lib, src, jwtCtr, tmpDir))
 
 	return &App{
 		log:     log,
