@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/gofiber/fiber/v2"
 
 	jwtController "github.com/GintGld/fizteh-radio/internal/controller/jwt"
@@ -32,6 +33,7 @@ func New(
 
 	app.Use(jwtC.AuthRequired())
 
+	app.Get("/media", libCtr.allMedia)
 	app.Post("/media", libCtr.newMedia)
 	app.Get("/media/:id", libCtr.media)
 	app.Get("/source/:id", libCtr.source)
@@ -47,12 +49,12 @@ type libraryController struct {
 }
 
 type Library interface {
+	AllMedia(ctx context.Context) ([]models.Media, error)
 	NewMedia(ctx context.Context, newMedia models.Media) (int64, error)
 	Media(ctx context.Context, id int64) (models.Media, error)
 	DeleteMedia(ctx context.Context, id int64) error
 }
 
-// TODO: load file
 type SourceStorage interface {
 	UploadSource(ctx context.Context, path string, media *models.Media) error
 	LoadSource(ctx context.Context, destDir string, media models.Media) (string, error)
@@ -60,6 +62,18 @@ type SourceStorage interface {
 }
 
 // TODO: add support for AAC, WAV
+
+// library returns all media
+func (libCtr *libraryController) allMedia(c *fiber.Ctx) error {
+	lib, err := libCtr.srvLib.AllMedia(context.TODO())
+	if err != nil {
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"library": lib,
+	})
+}
 
 // newMedia saves sended file and creates media
 func (libCtr *libraryController) newMedia(c *fiber.Ctx) error {
@@ -111,10 +125,26 @@ func (libCtr *libraryController) newMedia(c *fiber.Ctx) error {
 			"error": "content-type not found",
 		})
 	}
-	if fileType != "audio/mp4" && fileType != "audio/mpeg" {
+
+	// recognize MIME-type (allow only auido.mpeg == .mp3)
+	if fileType != "application/octet-stream" && fileType != "audio/mpeg" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "unsupported mime-type",
 		})
+	} else if fileType == "application/octet-stream" {
+		reader, err := file.Open()
+		if err != nil {
+			return c.SendStatus(fiber.StatusInternalServerError)
+		}
+		mimeType, err := mimetype.DetectReader(reader)
+		if err != nil {
+			return c.SendStatus(fiber.StatusInternalServerError)
+		}
+		if !mimeType.Is("audio/mpeg") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "unsupported mime-type",
+			})
+		}
 	}
 
 	tmpFile, err := os.CreateTemp(libCtr.tmpDir, "*.mp3")
@@ -211,6 +241,11 @@ func (libCtr *libraryController) deleteMedia(c *fiber.Ctx) error {
 	// TODO: enhance error statuses
 	media, err := libCtr.srvLib.Media(context.TODO(), id)
 	if err != nil {
+		if errors.Is(err, service.ErrMediaNotFound) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "media not found",
+			})
+		}
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
@@ -220,11 +255,6 @@ func (libCtr *libraryController) deleteMedia(c *fiber.Ctx) error {
 	}
 
 	if err = libCtr.srvLib.DeleteMedia(context.TODO(), id); err != nil {
-		if errors.Is(err, service.ErrMediaNotFound) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "media not found",
-			})
-		}
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 

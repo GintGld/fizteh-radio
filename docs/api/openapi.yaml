@@ -9,6 +9,7 @@ servers:
 tags:
   - name: Auth
   - name: 'Root: Editors'
+  - name: 'Library'
 
 paths:
   /login:
@@ -51,7 +52,6 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
   /root/editors:
-    
     get:
       description: Get all users
       tags:
@@ -140,11 +140,7 @@ paths:
         - rootAuth: []
       responses:
         '200':
-          description: Found editor
-          content: 
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Editor'
+          description: Deleted editor
         '400':
           description: Editor not found
           content: 
@@ -159,6 +155,144 @@ paths:
                       - 'editor not found'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /library/media:
+    get:
+      description: Get all info media
+      tags:
+        - 'Library'
+      security:
+        - editorAuth: []
+      responses:
+        '200':
+          description: Found editor
+          content: 
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Library'
+        '400':
+          description: Editor not found
+          content: 
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      - 'bad id'
+                      - 'editor not found'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      description: Post media with its source
+      tags:
+        - 'Library'
+      security:
+        - editorAuth: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                media:
+                  $ref: '#/components/schemas/MediaRegister'
+                source:
+                  type: string
+                  format: binary
+            encoding:
+              profileImage:
+                contentType: audio/mpeg, audio/mp4
+      responses:
+        '200':
+          description: Uploaded and registered new media
+  /library/media/{id}:
+    parameters:
+      -
+        $ref: '#/components/parameters/ID'
+    get:
+      description: Get media information by id
+      tags:
+        - Library
+      security:
+        - editorAuth: []
+      responses:
+        '200':
+          description: Found media
+          content: 
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Media'
+        '400':
+          description: Media not found
+          content: 
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      - 'bad id'
+                      - 'media not found'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      description: Delete media and its source by id
+      tags:
+        - Library
+      security:
+        - editorAuth: []
+      responses:
+        '200':
+          description: Deleted media and its source
+        '400':
+          description: Editor not found
+          content: 
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      - 'bad id'
+                      - 'editor not found'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /library/source/{id}:
+    parameters:
+      -
+        $ref: '#/components/parameters/ID'
+    get:
+      description: Get media source by id
+      tags:
+        - Library
+      security:
+        - editorAuth: []
+      responses:
+        '200':
+          description: Found media
+          content: 
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Media not found
+          content: 
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      - 'bad id'
+                      - 'media not found'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
 
 
 components:
@@ -188,6 +322,37 @@ components:
       type: array
       items:
         $ref: '#/components/schemas/Editor'
+    MediaRegister:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Highway to Hell
+        author:
+          type: string
+          example: AC/DC
+    Media:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Highway to Hell
+        author:
+          type: string
+          example: AC/DC
+        duration:
+          type: integer
+          example: 100
+    Library:
+      type: array
+      items:
+        $ref: '#/components/schemas/Media'
 
   responses: 
     InternalServerError:
@@ -215,6 +380,11 @@ components:
   securitySchemes:
     rootAuth:
       description: root access
+      type: http
+      bearerFormat: JWT
+      scheme: bearer
+    editorAuth:
+      description: editor access
       type: http
       bearerFormat: JWT
       scheme: bearer

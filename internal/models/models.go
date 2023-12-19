@@ -36,10 +36,9 @@ type Media struct {
 }
 
 type Segment struct {
-	ID       int64
-	MediaID  int64
-	Period   int64
-	Start    time.Time
-	BeginCut time.Duration
-	StopCut  time.Duration
+	ID       *int64         `json:"id"`
+	MediaID  *int64         `json:"mediaID"`
+	Start    *time.Time     `json:"start"`
+	BeginCut *time.Duration `json:"beginCut"`
+	StopCut  *time.Duration `json:"stopCut"`
 }

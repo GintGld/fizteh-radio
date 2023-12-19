@@ -18,6 +18,7 @@ type Library struct {
 }
 
 type LibraryStorage interface {
+	AllMedia(ctx context.Context) ([]models.Media, error)
 	SaveMedia(ctx context.Context, newMedia models.Media) (int64, error)
 	Media(ctx context.Context, id int64) (models.Media, error)
 	DeleteMedia(ctx context.Context, id int64) error
@@ -34,6 +35,31 @@ func New(
 }
 
 // TODO: in logging save editor name (put on context)
+
+func (l *Library) AllMedia(ctx context.Context) ([]models.Media, error) {
+	const op = "Library.AllMedia"
+
+	log := l.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	log.Info("getting all media")
+
+	media, err := l.libStorage.AllMedia(ctx)
+	if err != nil {
+		if errors.Is(err, storage.ErrMediaNotFound) {
+			log.Warn("media not found")
+			return []models.Media{}, service.ErrMediaNotFound
+		}
+		log.Error("failed to get media", sl.Err(err))
+		return []models.Media{}, err
+	}
+
+	log.Info("found media")
+
+	return media, nil
+}
 
 // NewMedia registers new editor in the system and returns media ID.
 func (l *Library) NewMedia(ctx context.Context, newMedia models.Media) (int64, error) {

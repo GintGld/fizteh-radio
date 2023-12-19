@@ -11,4 +11,7 @@ var (
 	ErrTimeoutToken = errors.New("timeout token")
 
 	ErrMediaNotFound = errors.New("editor not found")
+
+	ErrSegmentNotFound = errors.New("segment not found")
+	ErrSegmentExists   = errors.New("segment exists")
 )

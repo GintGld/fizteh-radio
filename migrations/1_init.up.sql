@@ -20,10 +20,7 @@ CREATE TABLE IF NOT EXISTS schedule
 (
     id          INTEGER PRIMARY KEY,
     media_id    INTEGER,
-    period      INTEGER UNIQUE,
     start_ms    INTEGER,
     begin_cut   INTEGER,
     stop_cut    INTEGER
 );
-
-CREATE INDEX IF NOT EXISTS idx_period ON schedule (period);

@@ -5,6 +5,7 @@ go 1.21.1
 require (
 	github.com/brianvoe/gofakeit/v6 v6.26.2
 	github.com/fatih/color v1.16.0
+	github.com/gabriel-vasile/mimetype v1.4.3
 	github.com/gavv/httpexpect/v2 v2.16.0
 	github.com/gofiber/contrib/jwt v1.0.8
 	github.com/gofiber/fiber/v2 v2.51.0
