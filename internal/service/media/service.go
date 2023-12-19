@@ -12,7 +12,7 @@ import (
 	"github.com/GintGld/fizteh-radio/internal/storage"
 )
 
-type MediaLibrary struct {
+type Media struct {
 	log          *slog.Logger
 	mediaStorage MediaStorage
 }
@@ -27,8 +27,8 @@ type MediaStorage interface {
 func New(
 	log *slog.Logger,
 	mediaStorage MediaStorage,
-) *MediaLibrary {
-	return &MediaLibrary{
+) *Media {
+	return &Media{
 		log:          log,
 		mediaStorage: mediaStorage,
 	}
@@ -36,8 +36,8 @@ func New(
 
 // TODO: in logging save editor name (put on context)
 
-func (l *MediaLibrary) AllMedia(ctx context.Context) ([]models.Media, error) {
-	const op = "MediaLibrary.AllMedia"
+func (l *Media) AllMedia(ctx context.Context) ([]models.Media, error) {
+	const op = "Media.AllMedia"
 
 	log := l.log.With(
 		slog.String("op", op),
@@ -62,8 +62,8 @@ func (l *MediaLibrary) AllMedia(ctx context.Context) ([]models.Media, error) {
 }
 
 // NewMedia registers new editor in the system and returns media ID.
-func (l *MediaLibrary) NewMedia(ctx context.Context, newMedia models.Media) (int64, error) {
-	const op = "MediaLibrary.NewMedia"
+func (l *Media) NewMedia(ctx context.Context, newMedia models.Media) (int64, error) {
+	const op = "Media.NewMedia"
 
 	log := l.log.With(
 		slog.String("op", op),
@@ -92,8 +92,8 @@ func (l *MediaLibrary) NewMedia(ctx context.Context, newMedia models.Media) (int
 // Media returns media model by given id.
 //
 // If media with given id does not exist, returns error.
-func (l *MediaLibrary) Media(ctx context.Context, id int64) (models.Media, error) {
-	const op = "MediaLibrary.Media"
+func (l *Media) Media(ctx context.Context, id int64) (models.Media, error) {
+	const op = "Media.Media"
 
 	log := l.log.With(
 		slog.String("op", op),
@@ -120,8 +120,8 @@ func (l *MediaLibrary) Media(ctx context.Context, id int64) (models.Media, error
 // DeleteMedia deletes media.
 //
 // If media with given id does not exist, returns error.
-func (l *MediaLibrary) DeleteMedia(ctx context.Context, id int64) error {
-	const op = "MediaLibrary.DeleteEditor"
+func (l *Media) DeleteMedia(ctx context.Context, id int64) error {
+	const op = "Media.DeleteEditor"
 
 	log := l.log.With(
 		slog.String("op", op),
