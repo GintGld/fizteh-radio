@@ -2,29 +2,18 @@ package tests
 
 import (
 	"net/url"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/brianvoe/gofakeit/v6"
 	"github.com/gavv/httpexpect/v2"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/joho/godotenv"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/GintGld/fizteh-radio/internal/config"
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/tests/suite"
-)
-
-// Actual environment
-var (
-	_        = godotenv.Load("../.env")
-	cfg      = config.MustLoadPath(os.Getenv("CONFIG_PATH"))
-	rootPass = os.Getenv("ROOT_PASS")
-	secret   = os.Getenv("SECRET")
 )
 
 // Correctness of login root
