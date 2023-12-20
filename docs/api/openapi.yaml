@@ -9,7 +9,7 @@ servers:
 tags:
   - name: Auth
   - name: 'Root: Editors'
-  - name: Library
+  - name: 'Library: Media'
   - name: Schedule
 
 paths:
@@ -166,7 +166,7 @@ paths:
     get:
       description: Get all info media
       tags:
-        - 'Library'
+        - 'Library: Media'
       security:
         - editorAuth: []
       responses:
@@ -193,7 +193,7 @@ paths:
     post:
       description: Post media with its source
       tags:
-        - 'Library'
+        - 'Library: Media'
       security:
         - editorAuth: []
       requestBody:
@@ -220,7 +220,7 @@ paths:
     get:
       description: Get media information by id
       tags:
-        - Library
+        - 'Library: Media'
       security:
         - editorAuth: []
       responses:
@@ -247,7 +247,7 @@ paths:
     delete:
       description: Delete media and its source by id
       tags:
-        - Library
+        - 'Library: Media'
       security:
         - editorAuth: []
       responses:
@@ -274,7 +274,7 @@ paths:
     get:
       description: Get media source by id
       tags:
-        - Library
+        - 'Library: Media'
       security:
         - editorAuth: []
       responses:
@@ -300,7 +300,8 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
   /schedule:
-    parameters:
+    get:
+      parameters:
       - in: query
         name: start
         schema:
@@ -311,7 +312,6 @@ paths:
         schema:
           type: integer
         description: stop cut
-    get: 
       description: Get schedule cut
       tags:
         - 'Schedule'
@@ -350,6 +350,12 @@ paths:
         - 'Schedule'
       security:
         - editorAuth: []
+      requestBody: 
+        description: ...
+        content: 
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SegmentRegister'
       responses:
         '200':
           description: Successfully created
@@ -492,6 +498,25 @@ components:
       type: array
       items:
         $ref: '#/components/schemas/Media'
+    SegmentRegister:
+      type: object
+      properties:
+        mediaID:
+          type: integer
+          example: 12
+          description: ID of corresponding media
+        start:
+          type: integer
+          example: 1703076879
+          description: Unix time
+        beginCut:
+          type: integer
+          example: 10923
+          description: time cut in ns
+        stopCut:
+          type: integer
+          example: 200000
+          description: time cut in ns
     Segment:
       type: object
       properties:
