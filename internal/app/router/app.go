@@ -12,12 +12,14 @@ import (
 	jwtSrv "github.com/GintGld/fizteh-radio/internal/service/jwt"
 	mediaSrv "github.com/GintGld/fizteh-radio/internal/service/media"
 	rootSrv "github.com/GintGld/fizteh-radio/internal/service/root"
+	schSrv "github.com/GintGld/fizteh-radio/internal/service/schedule"
 	srcSrv "github.com/GintGld/fizteh-radio/internal/service/source"
 
 	authCtr "github.com/GintGld/fizteh-radio/internal/controller/auth"
 	jwtCtr "github.com/GintGld/fizteh-radio/internal/controller/jwt"
 	mediaCtr "github.com/GintGld/fizteh-radio/internal/controller/media"
 	rootCtr "github.com/GintGld/fizteh-radio/internal/controller/root"
+	schCtr "github.com/GintGld/fizteh-radio/internal/controller/schedule"
 )
 
 type App struct {
@@ -44,6 +46,7 @@ func New(
 	if err != nil {
 		panic("invalid root password")
 	}
+	// Authentication service
 	auth := authSrv.New(
 		log,
 		storage,
@@ -51,23 +54,29 @@ func New(
 		rootPassHash,
 		tokenTTL,
 	)
-
+	// Root editor service
 	root := rootSrv.New(
 		log,
 		storage,
 	)
-
+	// Media library service
 	lib := mediaSrv.New(
 		log,
 		storage,
 	)
-
+	// Source library service
 	src := srcSrv.New(
 		log,
 		sourceDir,
 	)
+	// Schedule service
+	sch := schSrv.New(
+		log,
+		storage,
+		storage,
+	)
 
-	// Create controller helper
+	// Controller helper
 	jwtCtr := jwtCtr.New(secret)
 
 	app := fiber.New()
@@ -76,6 +85,7 @@ func New(
 	app.Mount("/login", authCtr.New(auth))
 	app.Mount("/root", rootCtr.New(root, jwtCtr))
 	app.Mount("/library", mediaCtr.New(lib, src, jwtCtr, tmpDir))
+	app.Mount("schedule", schCtr.New(sch, jwtCtr))
 
 	return &App{
 		log:     log,

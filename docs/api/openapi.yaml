@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Swagger Petstore - OpenAPI 3.0
+  title: Phystech Radio - OpenAPI 3.0
   description: |-
     This is a Phystech Radio specification.
   version: 0.0.1
@@ -9,7 +9,8 @@ servers:
 tags:
   - name: Auth
   - name: 'Root: Editors'
-  - name: 'Library'
+  - name: Library
+  - name: Schedule
 
 paths:
   /login:
@@ -75,6 +76,12 @@ paths:
         - 'Root: Editors'
       security:
         - rootAuth: []
+      requestBody: 
+        description: register form
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginForm'
       responses:
         '200':
           description: Successfully created
@@ -168,7 +175,7 @@ paths:
           content: 
             application/json:
               schema:
-                $ref: '#/components/schemas/Library'
+                $ref: '#/components/schemas/MediaArray'
         '400':
           description: Editor not found
           content: 
@@ -292,9 +299,141 @@ paths:
                       - 'media not found'
         '401':
           $ref: '#/components/responses/Unauthorized'
-
-
-
+  /schedule:
+    parameters:
+      - in: query
+        name: start
+        schema:
+          type: integer
+        description: start cut
+      - in: query
+        name: stop
+        schema:
+          type: integer
+        description: stop cut
+    get: 
+      description: Get schedule cut
+      tags:
+        - 'Schedule'
+      security:
+        - editorAuth: []
+      responses:
+        '200':
+          description: Got segments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Segments'
+        '400':
+          description: invalid parameters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      - media not defined
+                      - start not defined
+                      - beginCut not defined
+                      - stopCut not defined
+                      - beginCut is later that stopCut
+                      - media not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      description: Create new segment
+      tags:
+        - 'Schedule'
+      security:
+        - editorAuth: []
+      responses:
+        '200':
+          description: Successfully created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 1
+        '400':
+          description: Editor exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      - media not found
+                      - media not defined
+                      - start not defined
+                      - beginCut not defined
+                      - stop cut not defined
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /schedule/{id}:
+    parameters:
+      -
+        $ref: '#/components/parameters/ID'
+    get:
+      description: Get segment information by id
+      tags:
+        - Schedule
+      security:
+        - editorAuth: []
+      responses:
+        '200':
+          description: Found segment
+          content: 
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Segment'
+        '400':
+          description: Segment not found
+          content: 
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      - 'bad id'
+                      - 'segment not found'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      description: Delete segment by id
+      tags:
+        - Schedule
+      security:
+        - editorAuth: []
+      responses:
+        '200':
+          description: Deleted segment
+        '400':
+          description: Segment not found
+          content: 
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      - 'bad id'
+                      - 'segment not found'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 components:
   schemas:
     LoginForm:
@@ -349,17 +488,42 @@ components:
         duration:
           type: integer
           example: 100
-    Library:
+    MediaArray:
       type: array
       items:
         $ref: '#/components/schemas/Media'
+    Segment:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        mediaID:
+          type: integer
+          example: 12
+          description: ID of corresponding media
+        start:
+          type: integer
+          example: 1703076879
+          description: Unix time
+        beginCut:
+          type: integer
+          example: 10923
+          description: time cut in ns
+        stopCut:
+          type: integer
+          example: 200000
+          description: time cut in ns
+    Segments:
+      type: array
+      items:
+        $ref: '#/components/schemas/Segment'
 
   responses: 
     InternalServerError:
       description: Internal Server Error
     Unauthorized:
       description: Need authorization
-
   parameters: 
     JWT:
       name: Authorisation
@@ -376,7 +540,6 @@ components:
       schema:
         type: integer
         format: int64
-  
   securitySchemes:
     rootAuth:
       description: root access
