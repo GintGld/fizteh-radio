@@ -40,9 +40,9 @@ func (s *Storage) AllMedia(ctx context.Context) ([]models.Media, error) {
 		if err = rows.Scan(&id, &name, &author, &durationMs); err != nil {
 			return library, fmt.Errorf("%s: %w", op, err)
 		}
-		media.ID = &id
-		media.Name = &name
-		media.Author = &author
+		media.ID = pointers.Pointer(id)
+		media.Name = pointers.Pointer(name)
+		media.Author = pointers.Pointer(author)
 		media.Duration = pointers.Pointer(time.Duration(durationMs) * time.Millisecond)
 
 		library = append(library, media)
