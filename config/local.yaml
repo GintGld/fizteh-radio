@@ -8,3 +8,12 @@ http_server:
   tmp_dir: "./tmp"
 source_storage:
   path: "./storage"
+dash:
+  manifest_path: "./tmp/man/man.mpd"
+  content_dir: "./tmp/content"
+  chunk_length: "2s"
+  buffer_time: "30s"
+  buffer_depth: "5s"
+  client_update_freq: "10s"
+  dash_update_freq: "5s"
+  dash_horizon: "5m"

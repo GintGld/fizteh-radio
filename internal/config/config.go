@@ -14,6 +14,7 @@ type Config struct {
 	TokenTTL      time.Duration `yaml:"token_ttl" env-default:"1h"`
 	HTTPServer    `yaml:"http_server"`
 	SourceStorage `yaml:"source_storage"`
+	Dash          `yaml:"dash"`
 }
 
 type HTTPServer struct {
@@ -21,6 +22,17 @@ type HTTPServer struct {
 	Timeout      time.Duration `yaml:"timeout" end-default:"4s"`
 	IddleTimeout time.Duration `yaml:"idle_timeout" env-default:"60s"`
 	TmpDir       string        `yaml:"tmp_dir" env-default:"./tmp"`
+}
+
+type Dash struct {
+	ManifestPath     string        `yaml:"manifest_path" env-required:"true"`
+	ContentDir       string        `yaml:"content_dir" env-required:"true"`
+	ChunkLength      time.Duration `yaml:"chunk_length" env-default:"2s"`
+	BufferTime       time.Duration `yaml:"buffer_time" env-default:"30s"`
+	BufferDepth      time.Duration `yaml:"buffer_depth" env-default:"5s"`
+	ClientUpdateFreq time.Duration `yaml:"client_update_freq" env-default:"10s"`
+	DashUpdateFreq   time.Duration `yaml:"dash_update_freq" env-default:"20s"`
+	DashHorizon      time.Duration `yaml:"dash_horizon" env-default:"5m"`
 }
 
 type SourceStorage struct {

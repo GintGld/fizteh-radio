@@ -23,6 +23,14 @@ func New(
 	rootPass []byte,
 	tmpDir string,
 	sourceDir string,
+	manPath string,
+	contentDir string,
+	chunkLength time.Duration,
+	bufferTime time.Duration,
+	bufferDepth time.Duration,
+	clientUpdateFreq time.Duration,
+	dashUpdateFreq time.Duration,
+	dashHorizon time.Duration,
 ) *App {
 	storage, err := sqlite.New(storagePath)
 	if err != nil {
@@ -39,6 +47,14 @@ func New(
 		rootPass,
 		tmpDir,
 		sourceDir,
+		manPath,
+		contentDir,
+		chunkLength,
+		bufferTime,
+		bufferDepth,
+		clientUpdateFreq,
+		dashUpdateFreq,
+		dashHorizon,
 	)
 
 	return &App{
