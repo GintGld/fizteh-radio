@@ -5,3 +5,6 @@ go.work*
 *.sqlite
 .env
 Taskfile.yaml
+tmp
+public
+storage/**
