@@ -9,10 +9,13 @@ import (
 
 	"github.com/mattn/go-sqlite3"
 
-	"github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
+	ptr "github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/internal/storage"
 )
+
+// TODO: rename all variables named *Ms to smth else
+// because they are nanoseconds
 
 // ScheduelCut returns all segments intersecting given interval.
 func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Time) ([]models.Segment, error) {
@@ -27,8 +30,8 @@ func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Ti
 				$1 <= start_ms AND
 				$2 >= start_ms
 			) OR (
-				$1 <= start_ms + stop_cut - begin_cut AND
-				$2 >= start_ms + stop_cut - begin_cut
+				$1 <= start_ms + (stop_cut - begin_cut)/1000000 AND
+				$2 >= start_ms + (stop_cut - begin_cut)/1000000
 			)
 		)
 	`)
@@ -52,11 +55,11 @@ func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Ti
 		if err = rows.Scan(&id, &mediaID, &startMs, &beginMs, &stopMs); err != nil {
 			return segments, fmt.Errorf("%s: %w", op, err)
 		}
-		segment.ID = pointers.Pointer(id)
-		segment.MediaID = pointers.Pointer(mediaID)
-		segment.Start = pointers.Pointer(time.Unix(startMs/1000, startMs%1000))
-		segment.BeginCut = pointers.Pointer(time.Duration(beginMs) * time.Millisecond)
-		segment.StopCut = pointers.Pointer(time.Duration(stopMs) * time.Millisecond)
+		segment.ID = ptr.Ptr(id)
+		segment.MediaID = ptr.Ptr(mediaID)
+		segment.Start = ptr.Ptr(time.Unix(startMs/1000, startMs%1000))
+		segment.BeginCut = ptr.Ptr(time.Duration(beginMs))
+		segment.StopCut = ptr.Ptr(time.Duration(stopMs))
 
 		segments = append(segments, segment)
 
@@ -132,9 +135,9 @@ func (s *Storage) Segment(ctx context.Context, id int64) (models.Segment, error)
 
 	segment.ID = &id
 	segment.MediaID = &mediaID
-	segment.Start = pointers.Pointer(time.Unix(msec/1000, msec%1000*1000000))
-	segment.BeginCut = pointers.Pointer(time.Duration(beginMs))
-	segment.StopCut = pointers.Pointer(time.Duration(stopMs))
+	segment.Start = ptr.Ptr(time.Unix(msec/1000, msec%1000*1000000))
+	segment.BeginCut = ptr.Ptr(time.Duration(beginMs))
+	segment.StopCut = ptr.Ptr(time.Duration(stopMs))
 
 	return segment, nil
 }

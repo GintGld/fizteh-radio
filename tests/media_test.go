@@ -9,7 +9,7 @@ import (
 	"github.com/gavv/httpexpect/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
+	ptr "github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/tests/suite"
 )
@@ -176,7 +176,7 @@ func TestDeleteNotExistingMedia(t *testing.T) {
 
 func randomMedia() models.Media {
 	return models.Media{
-		Name:   pointers.Pointer(gofakeit.MovieName()),
-		Author: pointers.Pointer(gofakeit.Name()),
+		Name:   ptr.Ptr(gofakeit.MovieName()),
+		Author: ptr.Ptr(gofakeit.Name()),
 	}
 }

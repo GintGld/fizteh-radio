@@ -9,7 +9,7 @@ import (
 
 	"github.com/mattn/go-sqlite3"
 
-	"github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
+	ptr "github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/internal/storage"
 )
@@ -40,10 +40,10 @@ func (s *Storage) AllMedia(ctx context.Context) ([]models.Media, error) {
 		if err = rows.Scan(&id, &name, &author, &durationMs); err != nil {
 			return library, fmt.Errorf("%s: %w", op, err)
 		}
-		media.ID = pointers.Pointer(id)
-		media.Name = pointers.Pointer(name)
-		media.Author = pointers.Pointer(author)
-		media.Duration = pointers.Pointer(time.Duration(durationMs) * time.Millisecond)
+		media.ID = ptr.Ptr(id)
+		media.Name = ptr.Ptr(name)
+		media.Author = ptr.Ptr(author)
+		media.Duration = ptr.Ptr(time.Duration(durationMs) * time.Millisecond)
 
 		library = append(library, media)
 
@@ -114,7 +114,7 @@ func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 	media.SourceID = &sourceID
 	media.Name = &name
 	media.Author = &author
-	media.Duration = pointers.Pointer(time.Duration(durationMs) * time.Millisecond)
+	media.Duration = ptr.Ptr(time.Duration(durationMs) * time.Millisecond)
 
 	return media, nil
 }

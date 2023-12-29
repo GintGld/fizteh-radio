@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
+	ptr "github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/tests/suite"
 )
@@ -42,7 +42,7 @@ func TestCreateNewSegment(t *testing.T) {
 		Raw()
 
 	segment := randomSegment()
-	segment.MediaID = pointers.Pointer(int64(mediaId))
+	segment.MediaID = ptr.Ptr(int64(mediaId))
 
 	res := e.POST("/schedule").
 		WithHeader("Authorization", "Bearer "+token).
@@ -88,7 +88,7 @@ func TestGetSegment(t *testing.T) {
 
 	// Create new source
 	segment := randomSegment()
-	segment.MediaID = pointers.Pointer(int64(mediaID))
+	segment.MediaID = ptr.Ptr(int64(mediaID))
 
 	// Post segment
 	id := e.POST("/schedule").
@@ -176,7 +176,7 @@ func TestDeleteSegment(t *testing.T) {
 
 	// Create new source
 	segment := randomSegment()
-	segment.MediaID = pointers.Pointer(int64(mediaID))
+	segment.MediaID = ptr.Ptr(int64(mediaID))
 
 	// Post segment
 	id := e.POST("/schedule").
@@ -257,7 +257,7 @@ func randomSegment() models.Segment {
 	stop := begin + time.Duration(gofakeit.Uint32())
 
 	return models.Segment{
-		Start:    pointers.Pointer(gofakeit.Date()),
+		Start:    ptr.Ptr(gofakeit.Date()),
 		BeginCut: &begin,
 		StopCut:  &stop,
 	}

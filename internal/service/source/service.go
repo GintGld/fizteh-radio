@@ -11,8 +11,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/GintGld/fizteh-radio/internal/lib/ffmpeg"
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
-	"github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
+	ptr "github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
 	"github.com/GintGld/fizteh-radio/internal/models"
 )
 
@@ -78,8 +79,27 @@ func (s *Source) UploadSource(ctx context.Context, path string, media *models.Me
 
 	log.Info("uploaded source", slog.Int("sourceID", sourceID))
 
-	media.SourceID = pointers.Pointer(int64(sourceID))
-	media.Duration = pointers.Pointer(time.Second)
+	media.SourceID = ptr.Ptr(int64(sourceID))
+
+	durationString, err := ffmpeg.GetMeta(&fileName, "duration")
+	if err != nil {
+		log.Error(
+			"failed to get source duration",
+			slog.String("file", fileName),
+			sl.Err(err),
+		)
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	durationSec, err := strconv.ParseFloat(durationString, 64)
+	if err != nil {
+		log.Error(
+			"got invalid duration from metadata",
+			slog.String("value", durationString),
+			sl.Err(err),
+		)
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	media.Duration = ptr.Ptr(time.Second * time.Duration(durationSec))
 
 	return nil
 }
@@ -94,12 +114,12 @@ func (s *Source) LoadSource(ctx context.Context, destDir string, media models.Me
 		slog.String("editorname", models.RootLogin),
 	)
 
-	log.Info("loading source", slog.Int64("id", *media.ID), slog.Int64("sourceID", *media.SourceID))
-
 	if media.SourceID == nil {
 		log.Error("media source is not defined")
 		return "", fmt.Errorf("%s: media source is not defined", op)
 	}
+
+	log.Info("loading source", slog.Int64("sourceID", *media.SourceID))
 
 	fileName := s.dir + "/" + strconv.Itoa(int(*media.SourceID)) + ".mp3"
 	destName := destDir + "/" + strconv.Itoa(int(*media.SourceID)) + ".mp3"
@@ -125,7 +145,7 @@ func (s *Source) LoadSource(ctx context.Context, destDir string, media models.Me
 
 	log.Info("loaded source", slog.Int64("sourceID", *media.SourceID))
 
-	return fileName, nil
+	return destName, nil
 }
 
 // DeleteSource deletes source related to given media.

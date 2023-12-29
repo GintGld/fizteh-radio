@@ -1,6 +1,6 @@
-package pointers
+package ptr
 
 // Pointer casts T type to *T
-func Pointer[T any](t T) *T {
+func Ptr[T any](t T) *T {
 	return &t
 }
