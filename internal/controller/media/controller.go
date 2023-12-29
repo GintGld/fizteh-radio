@@ -15,6 +15,8 @@ import (
 	"github.com/GintGld/fizteh-radio/internal/service"
 )
 
+// TODO: check if controller really delete tmp files
+
 func New(
 	srvMedia Media,
 	srvSrc Source,
