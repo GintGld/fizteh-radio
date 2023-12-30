@@ -1,7 +1,6 @@
 package router
 
 import (
-	"context"
 	"log/slog"
 	"time"
 
@@ -132,7 +131,7 @@ func New(
 	app.Mount("/root", rootCtr.New(root, jwtCtr))
 	app.Mount("/library", mediaCtr.New(lib, src, jwtCtr, tmpDir))
 	app.Mount("/schedule", schCtr.New(sch, jwtCtr))
-	app.Mount("/radio", dashCtr.New(manPath, contentDir))
+	app.Mount("/radio", dashCtr.New(manPath, contentDir, jwtCtr, dash))
 	app.Static("/", "./public")
 
 	return &App{
@@ -150,7 +149,6 @@ func (a *App) MustRun() {
 }
 
 func (a *App) Run() error {
-	go a.dash.Run(context.TODO())
 	return a.app.Listen(a.address)
 }
 

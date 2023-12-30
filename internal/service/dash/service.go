@@ -141,10 +141,10 @@ mainloop:
 // Notify notifies dash to
 // unscheduled updating
 func (d *Dash) Notify() {
-	<-d.notifyChan
+	d.notifyChan <- struct{}{}
 }
 
 // Stop stops dash
 func (d *Dash) Stop() {
-	<-d.stopChan
+	d.stopChan <- struct{}{}
 }

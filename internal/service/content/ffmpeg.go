@@ -146,10 +146,29 @@ func (c *Content) deleteAll() error {
 		slog.String("op", op),
 	)
 
-	cmd := exec.Command("rm", "-rf", c.path+"/*")
-
-	if err := cmd.Run(); err != nil {
-		log.Error("failed to delete "+c.path+"/*", sl.Err(err))
+	files, err := os.ReadDir(c.path)
+	if err != nil {
+		log.Error(
+			"failed to get list of content dir",
+			slog.String("dir", c.path),
+			sl.Err(err),
+		)
 	}
+
+	for _, file := range files {
+		log.Debug("", slog.String("item", file.Name()))
+		err = os.RemoveAll(c.path + "/" + file.Name())
+		if err != nil {
+			log.Error(
+				"failed to delete",
+				slog.String("item", file.Name()),
+				slog.String("dir", c.path),
+				sl.Err(err),
+			)
+		}
+	}
+
+	log.Info("deleted all dash files", slog.String("dir", c.path))
+
 	return nil
 }
