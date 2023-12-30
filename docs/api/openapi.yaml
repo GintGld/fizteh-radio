@@ -9,8 +9,10 @@ servers:
 tags:
   - name: Auth
   - name: 'Root: Editors'
+  - name: 'Root: Radio'
   - name: 'Library: Media'
   - name: Schedule
+  - name: Radio
 
 paths:
   /login:
@@ -440,6 +442,60 @@ paths:
                       - 'segment not found'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /radio/mpd:
+    get:
+      description: Dash manifest for streaming
+      tags:
+        - Radio
+      responses:
+        '200':
+          description: Got manifest
+          content:
+            application/xml: 
+              schema:
+                type: string
+                format: byte
+        '404':
+          description: no manifest available
+  /radio/{id}/{file}:
+    get:
+      tags:
+        - 'Radio'
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/file'
+      description: Load source files for radio
+      responses:
+        '200':
+          description: Loaded source
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Not found
+  /radio/start:
+    get:
+      tags:
+        - 'Root: Radio'
+      security:
+        - rootAuth: []
+      description: Start radio
+      responses:
+        '200':
+          description: Started radio
+  /radio/stop:
+    get:
+      tags:
+        - 'Root: Radio'
+      security:
+        - rootAuth: []
+      description: Stop radio
+      responses:
+        '200':
+          description: Stopped radio
+
 components:
   schemas:
     LoginForm:
@@ -565,6 +621,12 @@ components:
       schema:
         type: integer
         format: int64
+    file:
+      name: file
+      in: path
+      required: true
+      schema:
+        type: string
   securitySchemes:
     rootAuth:
       description: root access
