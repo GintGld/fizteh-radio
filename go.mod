@@ -15,6 +15,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/stretchr/testify v1.8.4
+	github.com/zencoder/go-dash/v3 v3.0.3
 	golang.org/x/crypto v0.14.0
 )
 
