@@ -36,7 +36,8 @@ type Dash struct {
 }
 
 type SourceStorage struct {
-	SourcePath string `yaml:"path" env-required:"true"`
+	SourcePath   string `yaml:"path" env-required:"true"`
+	NestingDepth int    `yaml:"nesting_depth" nev-required:"true"`
 }
 
 func MustLoad() *Config {

@@ -45,6 +45,7 @@ func New(
 	rootPass []byte,
 	tmpDir string,
 	sourceDir string,
+	nestingDepth int,
 	manPath string,
 	contentDir string,
 	chunkLength time.Duration,
@@ -83,6 +84,7 @@ func New(
 	src := srcSrv.New(
 		log,
 		sourceDir,
+		nestingDepth,
 	)
 	// Schedule service
 	sch := schSrv.New(

@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/GintGld/fizteh-radio/internal/lib/ffmpeg"
@@ -18,18 +19,33 @@ import (
 )
 
 type Source struct {
-	log *slog.Logger
-	dir string
+	log          *slog.Logger
+	dir          string
+	nestingDepth int
+
+	maxId int
 }
 
 func New(
 	log *slog.Logger,
 	dir string,
+	nestingDepth int,
 ) *Source {
-	return &Source{
-		log: log,
-		dir: dir,
+	N := 1
+	for i := 0; i < nestingDepth; i++ {
+		N *= 10
 	}
+
+	source := &Source{
+		log:          log,
+		dir:          dir,
+		nestingDepth: nestingDepth,
+		maxId:        N,
+	}
+
+	source.mustInitFilesystem()
+
+	return source
 }
 
 // UploadSource moves source to given directory.
@@ -62,8 +78,39 @@ func (s *Source) UploadSource(ctx context.Context, path string, media *models.Me
 	}
 	defer source.Close()
 
-	sourceID := rand.Int()
-	fileName := s.dir + "/" + strconv.Itoa(sourceID) + ".mp3"
+	sourceID := int64(rand.Int63n(int64(s.maxId)))
+	exists, err := s.checkExistingID(sourceID)
+	if err != nil {
+		log.Error(
+			"failed to check id",
+			slog.Int64("id", sourceID),
+			sl.Err(err),
+		)
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	for exists {
+		sourceID = int64(rand.Int63n(int64(s.nestingDepth)))
+
+		exists, err = s.checkExistingID(sourceID)
+		if err != nil {
+			log.Error(
+				"failed to check id",
+				slog.Int64("id", sourceID),
+				sl.Err(err),
+			)
+			return fmt.Errorf("%s: %w", op, err)
+		}
+	}
+
+	dir, err := s.getCorrespondingDir(sourceID)
+	if err != nil {
+		log.Error(
+			"failed to get source dir",
+			slog.Int64("id", sourceID),
+			sl.Err(err),
+		)
+	}
+	fileName := dir + "/" + strconv.FormatInt(sourceID, 10) + ".mp3"
 
 	destination, err := os.Create(fileName)
 	if err != nil {
@@ -77,7 +124,7 @@ func (s *Source) UploadSource(ctx context.Context, path string, media *models.Me
 		return err
 	}
 
-	log.Info("uploaded source", slog.Int("sourceID", sourceID))
+	log.Info("uploaded source", slog.Int64("sourceID", sourceID))
 
 	media.SourceID = ptr.Ptr(int64(sourceID))
 
@@ -121,7 +168,16 @@ func (s *Source) LoadSource(ctx context.Context, destDir string, media models.Me
 
 	log.Info("loading source", slog.Int64("sourceID", *media.SourceID))
 
-	fileName := s.dir + "/" + strconv.Itoa(int(*media.SourceID)) + ".mp3"
+	dir, err := s.getCorrespondingDir(*media.SourceID)
+	if err != nil {
+		log.Error(
+			"failed to get source dir",
+			slog.Int64("id", *media.SourceID),
+			sl.Err(err),
+		)
+	}
+
+	fileName := dir + "/" + strconv.Itoa(int(*media.SourceID)) + ".mp3"
 	destName := destDir + "/" + strconv.Itoa(int(*media.SourceID)) + ".mp3"
 
 	source, err := os.Open(fileName)
@@ -163,7 +219,16 @@ func (s *Source) DeleteSource(ctx context.Context, media models.Media) error {
 	}
 	sourceID := *media.SourceID
 
-	fileName := s.dir + "/" + strconv.Itoa(int(sourceID)) + ".mp3"
+	dir, err := s.getCorrespondingDir(*media.SourceID)
+	if err != nil {
+		log.Error(
+			"failed to get source dir",
+			slog.Int64("id", *media.SourceID),
+			sl.Err(err),
+		)
+	}
+
+	fileName := dir + "/" + strconv.Itoa(int(sourceID)) + ".mp3"
 
 	log.Info("deleting source", slog.Int64("sourceID", sourceID))
 
@@ -182,4 +247,108 @@ func (s *Source) DeleteSource(ctx context.Context, media models.Media) error {
 	log.Info("deleted source", slog.Int64("sourceID", sourceID))
 
 	return nil
+}
+
+// initFileSystem inits file system.
+// Creates necessary directories.
+//
+// Panics if occurs error.
+func (s *Source) mustInitFilesystem() {
+	const op = "Source.mustInitFileSystem"
+
+	log := s.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	splitted := make([]string, s.nestingDepth)
+	for i := 0; i < s.maxId; i++ {
+		str := strconv.Itoa(i)
+
+		for j := 0; j < s.nestingDepth-len(str); j++ {
+			splitted[j] = "0"
+		}
+		for j := s.nestingDepth - len(str); j < s.nestingDepth; j++ {
+			splitted[j] = string(str[j-s.nestingDepth+len(str)])
+		}
+
+		dir := s.dir + "/" + strings.Join(splitted, "/")
+
+		if err := os.MkdirAll(dir, 0777); err != nil {
+			log.Error(
+				"failed to create dir",
+				slog.String("dir", dir),
+				sl.Err(err),
+			)
+			panic("failed to create dir")
+		}
+	}
+}
+
+// getCorrespondingDir returns path,
+// where source with given id should be placed.
+func (s *Source) getCorrespondingDir(id int64) (string, error) {
+	const op = "Source.getCorrespondingDir"
+
+	log := s.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	if id < 0 {
+		log.Warn("invalid media source id", slog.Int64("id", id))
+		return "", fmt.Errorf("%s: invalid media source id", op)
+	}
+
+	str := strconv.FormatInt(id, 10)
+
+	if len(str) > s.nestingDepth {
+		log.Warn("invalid media source id", slog.Int64("id", id))
+		return "", fmt.Errorf("%s: invalid media source id", op)
+	}
+
+	splitted := make([]string, s.nestingDepth)
+
+	for j := 0; j < s.nestingDepth-len(str); j++ {
+		splitted[j] = "0"
+	}
+	for j := s.nestingDepth - len(str); j < s.nestingDepth; j++ {
+		splitted[j] = string(str[j-s.nestingDepth+len(str)])
+	}
+
+	return s.dir + "/" + strings.Join(splitted, "/"), nil
+}
+
+func (s *Source) checkExistingID(id int64) (bool, error) {
+	const op = "Source.checkExistingID"
+
+	log := s.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	dir, err := s.getCorrespondingDir(id)
+	if err != nil {
+		log.Error(
+			"failed to get dir",
+			slog.Int64("id", id),
+			sl.Err(err),
+		)
+		return false, fmt.Errorf("%s: %w", op, err)
+	}
+
+	file := dir + "/" + strconv.FormatInt(id, 10) + ".mp3"
+
+	if _, err := os.Stat(file); err == nil {
+		return true, nil
+	} else if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	} else {
+		log.Error(
+			"failed to probe file",
+			slog.String("file", file),
+			sl.Err(err),
+		)
+		return false, fmt.Errorf("%s: %w", op, err)
+	}
 }

@@ -36,6 +36,7 @@ func main() {
 		getRootPass(),
 		cfg.TmpDir,
 		cfg.SourcePath,
+		cfg.NestingDepth,
 		cfg.ManifestPath,
 		cfg.ContentDir,
 		cfg.ChunkLength,
@@ -45,10 +46,6 @@ func main() {
 		cfg.DashUpdateFreq,
 		cfg.DashHorizon,
 	)
-
-	// TODO: init scheduler: DASH
-
-	// TODO: run scheduler
 
 	// Run server
 	go func() {
