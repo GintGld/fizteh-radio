@@ -46,6 +46,7 @@ func New(
 	tmpDir string,
 	sourceDir string,
 	nestingDepth int,
+	idLength int,
 	manPath string,
 	contentDir string,
 	chunkLength time.Duration,
@@ -85,6 +86,7 @@ func New(
 		log,
 		sourceDir,
 		nestingDepth,
+		idLength,
 	)
 	// Schedule service
 	sch := schSrv.New(

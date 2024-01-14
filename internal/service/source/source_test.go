@@ -14,7 +14,7 @@ import (
 
 const (
 	nestingDepth = 4
-	maxId        = 10000
+	maxId        = 100000
 )
 
 func TestInitFileSystem(t *testing.T) {
@@ -32,12 +32,10 @@ func TestInitFileSystem(t *testing.T) {
 
 	s.mustInitFilesystem()
 
-	for depth := 1; depth < s.nestingDepth; depth++ {
+	N := 1
 
-		N := 1
-		for i := 0; i < depth-1; i++ {
-			N *= 10
-		}
+	for depth := 1; depth < s.nestingDepth; depth++ {
+		N *= 10
 
 		splitted := make([]string, depth)
 		for i := 0; i < N; i++ {
@@ -70,45 +68,50 @@ func TestGetCurrentDir(t *testing.T) {
 	testCases := []struct {
 		desc        string
 		id          int64
+		idLength    int
 		expectValue string
 		expectError error
 	}{
 		{
 			desc:        "id shorter than max",
 			id:          10,
-			expectValue: tmpDir + "/0/0/1/0",
+			idLength:    5,
+			expectValue: tmpDir + "/0/0/0/1",
 			expectError: nil,
 		},
 		{
 			desc:        "id with max length",
-			id:          1203,
-			expectValue: tmpDir + "/1/2/0/3",
+			id:          10238,
+			idLength:    5,
+			expectValue: tmpDir + "/1/0/2/3",
 			expectError: nil,
 		},
 		{
 			desc:        "negative id",
 			id:          -21,
+			idLength:    4,
 			expectValue: "",
 			expectError: errors.New("Source.getCorrespondingDir: invalid media source id"),
 		},
 		{
 			desc:        "id greater max",
 			id:          103920,
+			idLength:    5,
 			expectValue: "",
 			expectError: errors.New("Source.getCorrespondingDir: invalid media source id"),
 		},
 	}
 
-	s := Source{
-		log: slog.New(
-			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}),
-		),
-		dir:          tmpDir,
-		nestingDepth: nestingDepth,
-		maxId:        maxId,
-	}
-
 	for _, tC := range testCases {
+		s := New(
+			slog.New(
+				slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}),
+			),
+			tmpDir,
+			nestingDepth,
+			tC.idLength,
+		)
+
 		t.Run(tC.desc, func(t *testing.T) {
 			res, err := s.getCorrespondingDir(tC.id)
 			assert.Equal(t, tC.expectValue, res)

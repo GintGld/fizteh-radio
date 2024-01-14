@@ -37,6 +37,7 @@ func main() {
 		cfg.TmpDir,
 		cfg.SourcePath,
 		cfg.NestingDepth,
+		cfg.IdLength,
 		cfg.ManifestPath,
 		cfg.ContentDir,
 		cfg.ChunkLength,

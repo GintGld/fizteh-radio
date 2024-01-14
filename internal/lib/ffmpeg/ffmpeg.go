@@ -8,15 +8,15 @@ import (
 	"github.com/GintGld/fizteh-radio/internal/models"
 )
 
-func Dir(s *models.Segment) string {
+func Dir(s models.Segment) string {
 	return strconv.FormatInt(*s.ID, 10)
 }
 
-func InitFile(s *models.Segment) string {
+func InitFile(s models.Segment) string {
 	return Dir(s) + `/init.m4s`
 }
 
-func ChunkFile(s *models.Segment) string {
+func ChunkFile(s models.Segment) string {
 	return Dir(s) + `/chunk-$Number%05d$.m4s`
 }
 

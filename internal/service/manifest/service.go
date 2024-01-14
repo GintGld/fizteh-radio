@@ -131,8 +131,8 @@ func (m *Manifest) SetSchedule(_ context.Context, schedule []models.Segment) err
 					Codecs:            ptr.Ptr("mp4a.40.2"),
 					SegmentTemplate: &mpd.SegmentTemplate{
 						StartNumber:    ptr.Ptr((int64)(1)),
-						Initialization: ptr.Ptr(ffmpeg.InitFile(&segment)),
-						Media:          ptr.Ptr(ffmpeg.ChunkFile(&segment)),
+						Initialization: ptr.Ptr(ffmpeg.InitFile(segment)),
+						Media:          ptr.Ptr(ffmpeg.ChunkFile(segment)),
 						Duration:       ptr.Ptr((int64)(m.chunkLength.Milliseconds())),
 						Timescale:      ptr.Ptr((int64)(1000)),
 					},

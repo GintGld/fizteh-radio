@@ -23,16 +23,18 @@ type Source struct {
 	dir          string
 	nestingDepth int
 
-	maxId int
+	idLength int
+	maxId    int
 }
 
 func New(
 	log *slog.Logger,
 	dir string,
 	nestingDepth int,
+	idLength int,
 ) *Source {
 	N := 1
-	for i := 0; i < nestingDepth; i++ {
+	for i := 0; i < idLength; i++ {
 		N *= 10
 	}
 
@@ -40,6 +42,7 @@ func New(
 		log:          log,
 		dir:          dir,
 		nestingDepth: nestingDepth,
+		idLength:     idLength,
 		maxId:        N,
 	}
 
@@ -78,28 +81,13 @@ func (s *Source) UploadSource(ctx context.Context, path string, media *models.Me
 	}
 	defer source.Close()
 
-	sourceID := int64(rand.Int63n(int64(s.maxId)))
-	exists, err := s.checkExistingID(sourceID)
+	sourceID, err := s.generateNewID()
 	if err != nil {
 		log.Error(
-			"failed to check id",
-			slog.Int64("id", sourceID),
+			"failed to generate new id",
 			sl.Err(err),
 		)
 		return fmt.Errorf("%s: %w", op, err)
-	}
-	for exists {
-		sourceID = int64(rand.Int63n(int64(s.nestingDepth)))
-
-		exists, err = s.checkExistingID(sourceID)
-		if err != nil {
-			log.Error(
-				"failed to check id",
-				slog.Int64("id", sourceID),
-				sl.Err(err),
-			)
-			return fmt.Errorf("%s: %w", op, err)
-		}
 	}
 
 	dir, err := s.getCorrespondingDir(sourceID)
@@ -219,11 +207,11 @@ func (s *Source) DeleteSource(ctx context.Context, media models.Media) error {
 	}
 	sourceID := *media.SourceID
 
-	dir, err := s.getCorrespondingDir(*media.SourceID)
+	dir, err := s.getCorrespondingDir(sourceID)
 	if err != nil {
 		log.Error(
 			"failed to get source dir",
-			slog.Int64("id", *media.SourceID),
+			slog.Int64("id", sourceID),
 			sl.Err(err),
 		)
 	}
@@ -261,8 +249,14 @@ func (s *Source) mustInitFilesystem() {
 		slog.String("editorname", models.RootLogin),
 	)
 
+	// indexing directories
+	N := 1
+	for i := 0; i < s.nestingDepth; i++ {
+		N *= 10
+	}
+
 	splitted := make([]string, s.nestingDepth)
-	for i := 0; i < s.maxId; i++ {
+	for i := 0; i < N; i++ {
 		str := strconv.Itoa(i)
 
 		for j := 0; j < s.nestingDepth-len(str); j++ {
@@ -285,6 +279,34 @@ func (s *Source) mustInitFilesystem() {
 	}
 }
 
+// generateNewID generates new unique id
+func (s *Source) generateNewID() (int64, error) {
+	const op = "Source.generateNewID"
+
+	log := s.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	for {
+		sourceID := int64(rand.Int63n(int64(s.maxId)))
+
+		exists, err := s.checkExistingID(sourceID)
+		if err != nil {
+			log.Error(
+				"failed to check id",
+				slog.Int64("id", sourceID),
+				sl.Err(err),
+			)
+			return 0, fmt.Errorf("%s: %w", op, err)
+		}
+
+		if !exists {
+			return sourceID, nil
+		}
+	}
+}
+
 // getCorrespondingDir returns path,
 // where source with given id should be placed.
 func (s *Source) getCorrespondingDir(id int64) (string, error) {
@@ -302,18 +324,18 @@ func (s *Source) getCorrespondingDir(id int64) (string, error) {
 
 	str := strconv.FormatInt(id, 10)
 
-	if len(str) > s.nestingDepth {
+	if len(str) > s.idLength {
 		log.Warn("invalid media source id", slog.Int64("id", id))
 		return "", fmt.Errorf("%s: invalid media source id", op)
 	}
 
 	splitted := make([]string, s.nestingDepth)
 
-	for j := 0; j < s.nestingDepth-len(str); j++ {
+	for j := 0; j < s.idLength-len(str); j++ {
 		splitted[j] = "0"
 	}
-	for j := s.nestingDepth - len(str); j < s.nestingDepth; j++ {
-		splitted[j] = string(str[j-s.nestingDepth+len(str)])
+	for j := s.idLength - len(str); j < s.nestingDepth; j++ {
+		splitted[j] = string(str[j-s.idLength+len(str)])
 	}
 
 	return s.dir + "/" + strings.Join(splitted, "/"), nil

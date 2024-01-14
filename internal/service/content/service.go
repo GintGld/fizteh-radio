@@ -41,7 +41,7 @@ type Source interface {
 	LoadSource(ctx context.Context, destDir string, media models.Media) (string, error)
 }
 
-func (c *Content) Generate(ctx context.Context, s *models.Segment) error {
+func (c *Content) Generate(ctx context.Context, s models.Segment) error {
 	const op = "Content.Generate"
 
 	log := c.log.With(

@@ -19,8 +19,10 @@ type Dash struct {
 	content    Content
 	schedule   Schedule
 
+	// notify to update
 	notifyChan chan struct{}
-	stopChan   chan struct{}
+	// stop
+	stopChan chan struct{}
 }
 
 // New returns new dash manager
@@ -51,7 +53,7 @@ type Manifest interface {
 }
 
 type Content interface {
-	Generate(ctx context.Context, segment *models.Segment) error
+	Generate(ctx context.Context, segment models.Segment) error
 	CleanUp()
 }
 
@@ -63,11 +65,6 @@ type Schedule interface {
 // TODO: mutex and method for updating (horizon, updatefreq)
 
 // TODO: move SetSchedule, Generate to goroutines
-
-// TODO: cleanup content during loop
-// make method in manifest `segments in use`
-// (don't forget about mutex)
-// make method in content `delete all segment not in use`
 
 // Run starts dash streaming
 func (d *Dash) Run(ctx context.Context) error {
@@ -112,7 +109,7 @@ mainloop:
 
 		// Create dash segments
 		for _, segment := range schedule {
-			if err := d.content.Generate(ctx, &segment); err != nil {
+			if err := d.content.Generate(ctx, segment); err != nil {
 				log.Error("failed to generate content", slog.Int64("id", *segment.ID), sl.Err(err))
 			}
 		}
