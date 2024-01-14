@@ -5,7 +5,7 @@ info:
     This is a Phystech Radio specification.
   version: 0.0.1
 servers:
-  - url: http://localhost:8082
+  - url: http://localhost:8080
 tags:
   - name: Auth
   - name: 'Root: Editors'
@@ -15,7 +15,7 @@ tags:
   - name: Radio
 
 paths:
-  /login:
+  /admin/login:
     post:
       tags:
         - Auth
@@ -53,8 +53,7 @@ paths:
                       - 'password required'
         '500':
           $ref: '#/components/responses/InternalServerError'
-
-  /root/editors:
+  /admin/root/editors:
     get:
       description: Get all users
       tags:
@@ -110,7 +109,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /root/editor/{id}:
+  /admin/root/editor/{id}:
     parameters:
       -
         $ref: '#/components/parameters/ID'
@@ -164,7 +163,7 @@ paths:
                       - 'editor not found'
         '401':
           $ref: '#/components/responses/Unauthorized'
-  /library/media:
+  /admin/library/media:
     get:
       description: Get all info media
       tags:
@@ -215,7 +214,7 @@ paths:
       responses:
         '200':
           description: Uploaded and registered new media
-  /library/media/{id}:
+  /admin/library/media/{id}:
     parameters:
       -
         $ref: '#/components/parameters/ID'
@@ -269,7 +268,7 @@ paths:
                       - 'editor not found'
         '401':
           $ref: '#/components/responses/Unauthorized'
-  /library/source/{id}:
+  /admin/library/source/{id}:
     parameters:
       -
         $ref: '#/components/parameters/ID'
@@ -301,7 +300,7 @@ paths:
                       - 'media not found'
         '401':
           $ref: '#/components/responses/Unauthorized'
-  /schedule:
+  /admin/schedule:
     get:
       parameters:
       - in: query
@@ -388,7 +387,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /schedule/{id}:
+  /admin/schedule/{id}:
     parameters:
       -
         $ref: '#/components/parameters/ID'

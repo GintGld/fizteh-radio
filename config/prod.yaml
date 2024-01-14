@@ -1,0 +1,21 @@
+env: local #prod
+storage_path: /radio/storage/storage.sqlite
+token_ttl: 1h
+http_server:
+  address: :8082
+  timeout: 4s
+  idle_timeout: 60s
+  tmp_dir: /radio/tmp/server
+source_storage:
+  path: ./source
+  nesting_depth: 2 # -> 5
+  id_length: 8
+dash:
+  manifest_path: /radio/tmp/man/man.mpd
+  content_dir: /radio/tmp/content
+  chunk_length: 2s
+  buffer_time: 30s
+  buffer_depth: 5s
+  client_update_freq: 10s
+  dash_update_freq: 30s
+  dash_horizon: 30s

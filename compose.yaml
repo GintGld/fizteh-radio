@@ -1,0 +1,32 @@
+services:
+  radio:
+    image: radio
+    restart: always
+    build:
+      context: .
+      target: final
+    ports:
+      - 8082:8082
+    volumes:
+      - /$SOURCE_STORAGE:/radio/source:rw
+      - /$DB_SQLITE:/radio/storage:rw
+      - manifest:/radio/tmp/man
+      - content:/radio/tmp/content
+      - tmp_server:/radio/tmp/server
+    env_file:
+      - .env
+  proxy:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - 8080:8080
+    volumes:
+      - /$STATIC_FILES:/usr/share/nginx/html:ro
+      - /$PWD/.nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - radio
+
+volumes:
+  manifest:
+  content:
+  tmp_server:

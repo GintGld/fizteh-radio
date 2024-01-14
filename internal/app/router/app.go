@@ -136,7 +136,7 @@ func New(
 	app.Mount("/library", mediaCtr.New(lib, src, jwtCtr, tmpDir))
 	app.Mount("/schedule", schCtr.New(sch, jwtCtr))
 	app.Mount("/radio", dashCtr.New(manPath, contentDir, jwtCtr, dash))
-	app.Static("/", "./public")
+	app.Static("/", "./public") // TODO: remove it since use nginx to serve static
 
 	return &App{
 		log:     log,
