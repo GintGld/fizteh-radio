@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
+	ptr "github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/internal/service"
 	"github.com/GintGld/fizteh-radio/internal/storage"
@@ -81,13 +82,17 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 
 	log.Info("validating media", slog.Int64("id", *segment.MediaID))
 
-	if _, err := s.mediaStorage.Media(ctx, *segment.MediaID); err != nil {
+	if media, err := s.mediaStorage.Media(ctx, *segment.MediaID); err != nil {
 		if errors.Is(err, storage.ErrMediaNotFound) {
 			log.Warn("media not found", slog.Int64("id", *segment.MediaID))
 			return 0, service.ErrMediaNotFound
 		}
 		log.Error("failed to get media", slog.Int64("id", *segment.MediaID), sl.Err(err))
 		return 0, fmt.Errorf("%s: %w", op, err)
+	} else {
+		// TODO: it is temporary fix, remove it later
+		segment.BeginCut = ptr.Ptr(time.Duration(0))
+		segment.StopCut = ptr.Ptr(*media.Duration)
 	}
 
 	log.Info("media is valid", slog.Int64("id", *segment.MediaID))

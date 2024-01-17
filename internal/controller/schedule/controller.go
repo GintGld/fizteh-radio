@@ -100,21 +100,31 @@ func (schCtr *scheduleController) newSegment(c *fiber.Ctx) error {
 			"error": "start not defined",
 		})
 	}
-	if form.Segment.BeginCut == nil {
+	// if form.Segment.BeginCut == nil {
+	// 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	// 		"error": "beginCut not defined",
+	// 	})
+	// }
+	// if form.Segment.StopCut == nil {
+	// 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	// 		"error": "stopCut not defined",
+	// 	})
+	// }
+	if form.Segment.BeginCut != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "beginCut not defined",
+			"error": "beginCut not implemented",
 		})
 	}
-	if form.Segment.StopCut == nil {
+	if form.Segment.StopCut != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "stopCut not defined",
+			"error": "stopCut not implemented",
 		})
 	}
-	if *form.Segment.BeginCut >= *form.Segment.StopCut {
-		c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "beginCut is later that stopCut",
-		})
-	}
+	// if *form.Segment.BeginCut >= *form.Segment.StopCut {
+	// 	c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	// 		"error": "beginCut is later that stopCut",
+	// 	})
+	// }
 
 	id, err := schCtr.schSrv.NewSegment(context.TODO(), form.Segment)
 	if err != nil {

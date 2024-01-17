@@ -128,16 +128,19 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 	// 	samplingRate = cmp.meta.sampling_rate
 	// }
 
-	startString := strconv.FormatFloat(s.BeginCut.Seconds(), 'g', -1, 64)
-	stopString := strconv.FormatFloat(s.StopCut.Seconds(), 'g', -1, 64)
+	// TODO: temporary disabled start/stop cutting,
+	// return it later
+
+	// startString := strconv.FormatFloat(s.BeginCut.Seconds(), 'g', -1, 64)
+	// stopString := strconv.FormatFloat(s.StopCut.Seconds(), 'g', -1, 64)
 	durationString := strconv.FormatFloat(c.chunkLenght.Seconds(), 'g', -1, 64)
 
 	cmd := exec.Command(
-		"ffmpeg",           //						call converter
-		"-hide_banner",     //						hide banner
-		"-y",               //						force rewriting file
-		"-ss", startString, //						start cut
-		"-to", stopString, //						stop cut
+		"ffmpeg",       //						call converter
+		"-hide_banner", //						hide banner
+		"-y",           //						force rewriting file
+		// "-ss", startString, //						start cut
+		// "-to", stopString, //						stop cut
 		"-i", filePath, //							input file
 		"-c:a", "aac", //							choose codec
 		"-b:a", strconv.Itoa(bitrate), //			choose bitrate (TODO: make different bitrate to enable bitrateSwitching)
