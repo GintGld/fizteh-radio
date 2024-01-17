@@ -8,7 +8,7 @@ http_server:
   tmp_dir: /radio/tmp/server
 source_storage:
   path: ./source
-  nesting_depth: 2 # -> 5
+  nesting_depth: 5
   id_length: 8
 dash:
   manifest_path: /radio/tmp/man/man.mpd
@@ -17,5 +17,5 @@ dash:
   buffer_time: 30s
   buffer_depth: 5s
   client_update_freq: 10s
-  dash_update_freq: 30s
-  dash_horizon: 30s
+  dash_update_freq: 5s
+  dash_horizon: 5m
