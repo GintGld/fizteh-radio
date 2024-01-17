@@ -2,9 +2,10 @@
 
 # script that docker use as entrypoint
 
-# prepare database
-mkdir storage && \
-    ./migrator \
+# prepare SQLite database
+# migrator can't create dir
+mkdir -p storage
+./migrator \
     -storage-path=./storage/storage.sqlite \
     -migrations-path=migrations \
     -migrations-table=migrations
