@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
@@ -24,6 +25,15 @@ func New(
 	media Media,
 	source Source,
 ) *Content {
+	if err := os.MkdirAll(path+"/.cache", 0777); err != nil {
+		log.Error(
+			"failed to generate cache dir",
+			slog.String("path", path+"/.cache"),
+			sl.Err(err),
+		)
+	}
+	log.Debug("created cache dir")
+
 	return &Content{
 		log:         log,
 		path:        path,
@@ -41,6 +51,8 @@ type Source interface {
 	LoadSource(ctx context.Context, destDir string, media models.Media) (string, error)
 }
 
+// Generate generates dash content
+// by given segment
 func (c *Content) Generate(ctx context.Context, s models.Segment) error {
 	const op = "Content.Generate"
 
@@ -55,6 +67,27 @@ func (c *Content) Generate(ctx context.Context, s models.Segment) error {
 	return nil
 }
 
+// ClearCache clears cache. Must be called
+// regularly if dash works not in cyclic regime
+func (c *Content) ClearCache() error {
+	const op = "Content.ClearCache"
+
+	log := c.log.With(
+		slog.String("op", op),
+	)
+
+	if err := c.deleteCache(); err != nil {
+		log.Error("failed to clear cache", sl.Err(err))
+	}
+
+	log.Debug("cleared cache")
+
+	return nil
+}
+
+// CleanUp deletes all files create by
+// Content struct. Must be called after
+// stopping dash
 func (c *Content) CleanUp() {
 	const op = "Content.CleanUp"
 

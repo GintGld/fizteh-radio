@@ -54,6 +54,7 @@ type Manifest interface {
 
 type Content interface {
 	Generate(ctx context.Context, segment models.Segment) error
+	ClearCache() error
 	CleanUp()
 }
 
@@ -116,6 +117,12 @@ mainloop:
 
 		log.Debug("generated segments")
 
+		if err := d.content.ClearCache(); err != nil {
+			log.Error("failed to clear cache", sl.Err(err))
+		} else {
+			log.Debug("cleared cache")
+		}
+
 		select {
 		case <-time.After(d.updateFreq):
 			log.Debug("timer tick")
@@ -134,6 +141,8 @@ mainloop:
 
 	return nil
 }
+
+// TODO: use notify chan
 
 // Notify notifies dash to
 // unscheduled updating

@@ -113,6 +113,7 @@ func New(
 		lib,
 		src,
 	)
+	// Dash goroutine
 	dash := dashSrv.New(
 		log,
 		dashUpdateFreq,
