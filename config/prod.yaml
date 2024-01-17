@@ -1,4 +1,4 @@
-env: local #prod
+env: prod
 storage_path: /radio/storage/storage.sqlite
 token_ttl: 1h
 http_server:
