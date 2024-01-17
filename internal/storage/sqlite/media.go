@@ -63,7 +63,7 @@ func (s *Storage) SaveMedia(ctx context.Context, media models.Media) (int64, err
 	}
 	defer stmt.Close()
 
-	res, err := stmt.ExecContext(ctx, *media.Name, *media.Author, media.Duration.Milliseconds(), *media.SourceID)
+	res, err := stmt.ExecContext(ctx, *media.Name, *media.Author, media.Duration.Microseconds(), *media.SourceID)
 	if err != nil {
 		var sqliteErr sqlite3.Error
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
@@ -96,10 +96,10 @@ func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 	var (
 		sourceID     int64
 		name, author string
-		durationMs   int64
+		durationMuS  int64
 	)
 
-	err = row.Scan(&name, &author, &durationMs, &sourceID)
+	err = row.Scan(&name, &author, &durationMuS, &sourceID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.Media{}, fmt.Errorf("%s: %w", op, storage.ErrMediaNotFound)
@@ -114,7 +114,7 @@ func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 	media.SourceID = &sourceID
 	media.Name = &name
 	media.Author = &author
-	media.Duration = ptr.Ptr(time.Duration(durationMs) * time.Millisecond)
+	media.Duration = ptr.Ptr(time.Duration(durationMuS) * time.Microsecond)
 
 	return media, nil
 }

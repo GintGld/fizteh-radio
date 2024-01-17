@@ -23,15 +23,15 @@ func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Ti
 
 	// Select segments intersecting diaposon [start, stop]
 	stmt, err := s.db.Prepare(`
-		SELECT id, media_id, start_ms, begin_cut, stop_cut 
+		SELECT id, media_id, start_mus, begin_cut, stop_cut 
 		FROM schedule
 		WHERE (
 			(
-				$1 <= start_ms AND
-				$2 >= start_ms
+				$1 <= start_mus AND
+				$2 >= start_mus
 			) OR (
-				$1 <= start_ms + (stop_cut - begin_cut)/1000000 AND
-				$2 >= start_ms + (stop_cut - begin_cut)/1000000
+				$1 <= start_mus + (stop_cut - begin_cut) AND
+				$2 >= start_mus + (stop_cut - begin_cut)
 			)
 		)
 	`)
@@ -40,7 +40,7 @@ func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Ti
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.QueryContext(ctx, start.UnixMilli(), stop.UnixMilli())
+	rows, err := stmt.QueryContext(ctx, start.UnixMicro(), stop.UnixMicro())
 	if err != nil {
 		return []models.Segment{}, fmt.Errorf("%s: %w", op, err)
 	}
@@ -49,17 +49,17 @@ func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Ti
 	var (
 		segment models.Segment
 		id, mediaID, startMs,
-		beginMs, stopMs int64
+		beginMuS, stopMuS int64
 	)
 	for rows.Next() {
-		if err = rows.Scan(&id, &mediaID, &startMs, &beginMs, &stopMs); err != nil {
+		if err = rows.Scan(&id, &mediaID, &startMs, &beginMuS, &stopMuS); err != nil {
 			return segments, fmt.Errorf("%s: %w", op, err)
 		}
 		segment.ID = ptr.Ptr(id)
 		segment.MediaID = ptr.Ptr(mediaID)
-		segment.Start = ptr.Ptr(time.Unix(startMs/1000, startMs%1000))
-		segment.BeginCut = ptr.Ptr(time.Duration(beginMs))
-		segment.StopCut = ptr.Ptr(time.Duration(stopMs))
+		segment.Start = ptr.Ptr(time.Unix(startMs/1000000, startMs%1000000*1000))
+		segment.BeginCut = ptr.Ptr(time.Duration(beginMuS) * time.Microsecond)
+		segment.StopCut = ptr.Ptr(time.Duration(stopMuS) * time.Microsecond)
 
 		segments = append(segments, segment)
 
@@ -85,13 +85,19 @@ func (s *Storage) SaveSegment(ctx context.Context, segment models.Segment) (int6
 		return 0, fmt.Errorf("%s: stop cut is not defined", op)
 	}
 
-	stmt, err := s.db.Prepare("INSERT INTO schedule(media_id, start_ms, begin_cut, stop_cut) VALUES(?, ?, ?, ?)")
+	stmt, err := s.db.Prepare("INSERT INTO schedule(media_id, start_mus, begin_cut, stop_cut) VALUES(?, ?, ?, ?)")
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 	defer stmt.Close()
 
-	res, err := stmt.ExecContext(ctx, *segment.MediaID, segment.Start.UnixMilli(), *segment.BeginCut, *segment.StopCut)
+	res, err := stmt.ExecContext(
+		ctx,
+		*segment.MediaID,
+		segment.Start.UnixMicro(),
+		segment.BeginCut.Microseconds(),
+		segment.StopCut.Microseconds(),
+	)
 	if err != nil {
 		var sqliteErr sqlite3.Error
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
@@ -113,18 +119,18 @@ func (s *Storage) SaveSegment(ctx context.Context, segment models.Segment) (int6
 func (s *Storage) Segment(ctx context.Context, id int64) (models.Segment, error) {
 	const op = "storage.sqlite.Segment"
 
-	stmt, err := s.db.Prepare("SELECT media_id, start_ms, begin_cut, stop_cut FROM schedule WHERE id = ?")
+	stmt, err := s.db.Prepare("SELECT media_id, start_mus, begin_cut, stop_cut FROM schedule WHERE id = ?")
 	if err != nil {
 		return models.Segment{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	var (
-		segment                        models.Segment
-		mediaID, msec, beginMs, stopMs int64
+		segment                          models.Segment
+		mediaID, msec, beginMuS, stopMuS int64
 	)
 
 	row := stmt.QueryRowContext(ctx, id)
-	err = row.Scan(&mediaID, &msec, &beginMs, &stopMs)
+	err = row.Scan(&mediaID, &msec, &beginMuS, &stopMuS)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.Segment{}, fmt.Errorf("%s: %w", op, storage.ErrSegmentNotFound)
@@ -135,9 +141,9 @@ func (s *Storage) Segment(ctx context.Context, id int64) (models.Segment, error)
 
 	segment.ID = &id
 	segment.MediaID = &mediaID
-	segment.Start = ptr.Ptr(time.Unix(msec/1000, msec%1000*1000000))
-	segment.BeginCut = ptr.Ptr(time.Duration(beginMs))
-	segment.StopCut = ptr.Ptr(time.Duration(stopMs))
+	segment.Start = ptr.Ptr(time.Unix(msec/1000000, msec%1000000*1000))
+	segment.BeginCut = ptr.Ptr(time.Duration(beginMuS * 1000))
+	segment.StopCut = ptr.Ptr(time.Duration(stopMuS * 1000))
 
 	return segment, nil
 }

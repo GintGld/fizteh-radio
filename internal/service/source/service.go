@@ -134,7 +134,7 @@ func (s *Source) UploadSource(ctx context.Context, path string, media *models.Me
 		)
 		return fmt.Errorf("%s: %w", op, err)
 	}
-	media.Duration = ptr.Ptr(time.Second * time.Duration(durationSec))
+	media.Duration = ptr.Ptr(time.Microsecond * time.Duration(durationSec*1000000))
 
 	return nil
 }
