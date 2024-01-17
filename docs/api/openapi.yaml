@@ -441,9 +441,11 @@ paths:
                       - 'segment not found'
         '401':
           $ref: '#/components/responses/Unauthorized'
-  /radio/mpd:
+  /man.mpd:
     get:
-      description: Dash manifest for streaming
+      description: |-
+        Dash manifest for streaming. Entrypoint to start
+        listening DASH streaming.
       tags:
         - Radio
       responses:
@@ -456,14 +458,16 @@ paths:
                 format: byte
         '404':
           description: no manifest available
-  /radio/{id}/{file}:
+  /{id}/{file}:
     get:
       tags:
         - 'Radio'
       parameters:
         - $ref: '#/components/parameters/ID'
         - $ref: '#/components/parameters/file'
-      description: Load source files for radio
+      description: |-
+        Load source files for radio.
+        Player automatically loads them.
       responses:
         '200':
           description: Loaded source
@@ -621,6 +625,7 @@ components:
         type: integer
         format: int64
     file:
+      description: .m4s file
       name: file
       in: path
       required: true
