@@ -22,7 +22,7 @@ services:
     ports:
       - 8080:8080
     volumes:
-      - /$STATIC_FILES:/usr/share/nginx/html:ro
+      - /$FRONTEND_FILES:/usr/share/nginx/html:ro
       - manifest:/manifest:ro
       - content:/content:ro
       - /$PWD/.nginx/nginx.conf:/etc/nginx/nginx.conf:ro
