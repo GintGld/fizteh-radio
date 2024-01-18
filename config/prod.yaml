@@ -1,4 +1,5 @@
 env: prod
+log_path: /radio/.log/radio.log
 storage_path: /radio/storage/storage.sqlite
 token_ttl: 1h
 http_server:

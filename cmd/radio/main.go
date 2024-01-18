@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,14 +15,13 @@ import (
 
 const (
 	envLocal = "local"
-	envDev   = "dev"
 	envProd  = "prod"
 )
 
 func main() {
 	cfg := config.MustLoad()
 
-	log := setupLogger(cfg.Env)
+	log := setupLogger(cfg.Env, cfg.LogPath)
 
 	log.Info("starting radio", slog.String("env", cfg.Env))
 	log.Debug("debug messages are enabled")
@@ -63,19 +63,27 @@ func main() {
 	log.Info("Gracefully stopped")
 }
 
-func setupLogger(env string) *slog.Logger {
+func setupLogger(env, logPath string) *slog.Logger {
 	var log *slog.Logger
 
 	switch env {
 	case envLocal:
 		log = setupPrettySlog()
-	case envDev:
-		log = slog.New(
-			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}),
-		)
 	case envProd:
+		var logWriter io.Writer
+
+		if logPath == "" {
+			logWriter = os.Stdout
+		} else {
+			var err error
+			logWriter, err = os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				panic("failed to open log file. Error: " + err.Error())
+			}
+		}
+
 		log = slog.New(
-			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}),
+			slog.NewJSONHandler(logWriter, &slog.HandlerOptions{Level: slog.LevelInfo}),
 		)
 	}
 

@@ -4,6 +4,7 @@ demo/tmp/*
 go.work*
 *.sqlite
 .env
+.log
 Taskfile.yaml
 tmp
 public

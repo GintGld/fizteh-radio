@@ -10,6 +10,7 @@ import (
 
 type Config struct {
 	Env           string        `yaml:"env" env-required:"true"`
+	LogPath       string        `yaml:"log_path" env-default:""`
 	StoragePath   string        `yaml:"storage_path" env-required:"true"`
 	TokenTTL      time.Duration `yaml:"token_ttl" env-default:"1h"`
 	HTTPServer    `yaml:"http_server"`
