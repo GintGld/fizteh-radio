@@ -11,7 +11,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      HOST: fizteh-radio@radiomipt.ru -p 5010
+      HOST: fizteh-radio@radiomipt.ru
+      PORT: 5010
       DEPLOY_DIRECTORY: /home/fizteh-radio/online-radio/server
       CONFIG_PATH: /home/fizteh-radio/online-radio/server/prod.yaml
       ENV_FILE_PATH: /home/fizteh-radio/online-radio/server/.env
@@ -44,18 +45,19 @@ jobs:
         run: |
           echo "$DEPLOY_SSH_KEY" | base64 -d > deploy_key.pem
           sudo chmod 600 deploy_key.pem
-          ssh -i deploy_key.pem -o StrictHostKeyChecking=no ${{ env.HOST }} "mkdir -p ${{ env.DEPLOY_DIRECTORY }}"
+          ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} "mkdir -p ${{ env.DEPLOY_DIRECTORY }}"
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       - name: Setup environment
         run: |
-          rm -f ${{ env.ENV_FILE_PATH }} && \
+          ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
+          "rm -f ${{ env.ENV_FILE_PATH }} && \
           echo "CONFIG_PATH=${{ env.CONFIG_PATH }}" >> ${{ env.ENV_FILE_PATH }} && \
           echo "SECRET=${{ secrets.SECRET }}" >> ${{ env.ENV_FILE_PATH }} && \
           echo "ROOT_PASS=${{ secrets.ROOT_PASS }}" >> ${{ env.ENV_FILE_PATH }} && \
           export SOURCE_STORAGE=/mnt/base/radio-source && \
           export DB_SQLITE=${{ env.DEPLOY_DIRECTORY }}/storage && \
-          export FRONTEND_FILES=${{ env.FRONTEND_FILES }}
+          export FRONTEND_FILES=${{ env.FRONTEND_FILES }}"
       - name: Deploy to server
         run: |
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no ${{ env.HOST }} \
