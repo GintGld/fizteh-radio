@@ -15,10 +15,12 @@ jobs:
           run: |
             echo ${{ secrets.DOCKERHUB_TOKEN }} | \
             docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
-        - name: Docker buildx ls
-          run: docker buildx ls
         - name: Build Docker image
           run: |
+            docker buildx create --name mybuilder --platform linux/amd64,linux/arm64,linux/arm/v8 && \
+            docker buildx use mybuilder && \
+            docker buildx ls && \
+            docker buildx inspect && \
             docker buildx build \
             --platform linux/amd64,linux/arm64,linux/arm/v8 \
             -t radio:latest .
