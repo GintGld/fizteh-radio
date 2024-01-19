@@ -1,7 +1,7 @@
-name: Deploy App
+name: Build App
 
-# on:
-#   workflow_dispatch:
+on:
+  workflow_dispatch:
 
 build:
     runs-on: ubuntu-latest
