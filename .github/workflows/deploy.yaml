@@ -42,10 +42,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
       - name: Where am I
-        runs:
-          - pwd
-          - ls -la ${{ github.workspace }}
-          - ls -la
+        run: |
+          pwd && \
+          ls -la ${{ github.workspace }} && \
+          ls -la
       - name: Setup ssh
         run: |
           echo "$DEPLOY_SSH_KEY" > deploy_key.pem
