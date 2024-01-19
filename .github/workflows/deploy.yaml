@@ -41,15 +41,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Where am I
-        run: |
-          pwd && \
-          ls -la ${{ github.workspace }} && \
-          ls -la
       - name: Setup ssh
         run: |
           echo "$DEPLOY_SSH_KEY" > deploy_key.pem
           sudo chmod 600 deploy_key.pem
+          ls -la deploy_key.pem
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} "mkdir -p ${{ env.DEPLOY_DIR }}"
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
