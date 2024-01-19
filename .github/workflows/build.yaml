@@ -21,7 +21,7 @@ jobs:
             docker buildx use mybuilder && \
             docker buildx ls && \
             docker buildx inspect && \
-            docker run -it --rm --privileged tonistiigi/binfmt --install all && \
+            docker run --privileged --rm tonistiigi/binfmt --install all && \
             docker buildx ls && \
             docker buildx inspect && \
             docker buildx build \
