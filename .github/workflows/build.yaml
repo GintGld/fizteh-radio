@@ -17,7 +17,7 @@ jobs:
             docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
         - name: Build Docker image
           run: |
-            docker buildx create -use && \
+            docker buildx create --use && \
             docker build \
             --platform linux/amd64,linux/arm64,linux/arm/v8 \
             -t radio:latest .
