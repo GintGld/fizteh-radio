@@ -45,7 +45,7 @@ jobs:
         run: |
           echo "$DEPLOY_SSH_KEY" > deploy_key.pem
           sudo chmod 600 deploy_key.pem
-          sudo ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} "mkdir -p ${{ env.DEPLOY_DIR }}"
+          ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} "mkdir -p ${{ env.DEPLOY_DIR }}"
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       - name: Setup environment
@@ -66,8 +66,9 @@ jobs:
       - name: Deploy to server
         run: |
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
-            'sudo docker pull gingld/fizteh-radio && \
-            sudo docker stop radio && \
-            sudo docker rm radio && \
-            cd ${{ env.DEPLOY_DIR }} && \
-            sudo docker compose up'
+            'sudo docker image ls'
+        #    'sudo docker pull gingld/fizteh-radio && \
+        #    sudo docker stop radio && \
+        #    sudo docker rm radio && \
+        #    cd ${{ env.DEPLOY_DIR }} && \
+        #    sudo docker compose up'
