@@ -10,14 +10,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      HOST: fizteh-radio@radiomipt.ru
-      PORT: 5010
-      DEPLOY_DIRECTORY: /home/fizteh-radio/online-radio/server
-      CONFIG_PATH: /home/fizteh-radio/online-radio/server/prod.yaml
-      ENV_FILE_PATH: /home/fizteh-radio/online-radio/server/.env
-      FRONTEND_FILES: /home/fizteh-radio/online-radio/client
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -35,34 +27,47 @@ jobs:
           docker tag radio:latest gingld/fizteh-radio:latest 
           docker push gingld/fizteh-radio:latest
 
+  # TODO: закинуть compose на сервер
   deploy:
     runs-on: ubuntu-latest
     needs: build
+    env:
+      HOST: fizteh-radio@radiomipt.ru
+      PORT: 5010
+      DEPLOY_DIR: /home/fizteh-radio/online-radio/server
+      CONFIG_PATH: /home/fizteh-radio/online-radio/server/prod.yaml
+      ENV_FILE_PATH: /home/fizteh-radio/online-radio/server/.env
+      FRONTEND_FILES: /home/fizteh-radio/online-radio/client
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
       - name: Setup ssh
         run: |
           echo "$DEPLOY_SSH_KEY" > deploy_key.pem
-          sudo chmod 600 deploy_key.pem
-          ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} "mkdir -p ${{ env.DEPLOY_DIRECTORY }}"
+          sudo chmod 600 deploy_key.pem 
+          ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} "mkdir -p ${{ env.DEPLOY_DIR }}"
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       - name: Setup environment
         run: |
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
-          "rm -f ${{ env.ENV_FILE_PATH }} && \
+          "sudo rm -f ${{ env.ENV_FILE_PATH }} && \
           echo "CONFIG_PATH=${{ env.CONFIG_PATH }}" >> ${{ env.ENV_FILE_PATH }} && \
           echo "SECRET=${{ secrets.SECRET }}" >> ${{ env.ENV_FILE_PATH }} && \
           echo "ROOT_PASS=${{ secrets.ROOT_PASS }}" >> ${{ env.ENV_FILE_PATH }} && \
           export SOURCE_STORAGE=/mnt/base/radio-source && \
-          export DB_SQLITE=${{ env.DEPLOY_DIRECTORY }}/storage && \
+          export DB_SQLITE=${{ env.DEPLOY_DIR }}/storage && \
           export FRONTEND_FILES=${{ env.FRONTEND_FILES }}"
+      - name: send compose.yaml
+        run: |
+          scp -i deploy_key.pem -o StrictHostKeyChecking=no -P ${{ env.PORT }} \
+          compose.yaml \
+          ${{ env.HOST }}:${{ env.DEPLOY_DIR }}
       - name: Deploy to server
         run: |
-          ssh -i deploy_key.pem -o StrictHostKeyChecking=no ${{ env.HOST }} \
+          ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
             'sudo docker pull gingld/fizteh-radio && \
             sudo docker stop radio && \
             sudo docker rm radio && \
-            cd ${{ env.DEPLOY_DIRECTORY }} && \
+            cd ${{ env.DEPLOY_DIR }} && \
             sudo docker compose up'
