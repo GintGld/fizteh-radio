@@ -44,9 +44,8 @@ jobs:
       - name: Setup ssh
         run: |
           echo "$DEPLOY_SSH_KEY" > deploy_key.pem
-          sudo chmod 666 deploy_key.pem
-          ls -la deploy_key.pem
-          ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} "mkdir -p ${{ env.DEPLOY_DIR }}"
+          sudo chmod 600 deploy_key.pem
+          sudo ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} "mkdir -p ${{ env.DEPLOY_DIR }}"
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       - name: Setup environment
