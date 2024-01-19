@@ -21,6 +21,9 @@ jobs:
             docker buildx use mybuilder && \
             docker buildx ls && \
             docker buildx inspect && \
+            docker run -it --rm --privileged tonistiigi/binfmt --install all && \
+            docker buildx ls && \
+            docker buildx inspect && \
             docker buildx build \
             --platform linux/amd64,linux/arm64,linux/arm/v8 \
             -t radio:latest .
