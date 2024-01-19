@@ -66,9 +66,8 @@ jobs:
       - name: Deploy to server
         run: |
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
-            'sudo docker image ls'
-        #    'sudo docker pull gingld/fizteh-radio && \
-        #    sudo docker stop radio && \
-        #    sudo docker rm radio && \
-        #    cd ${{ env.DEPLOY_DIR }} && \
-        #    sudo docker compose up'
+          'sudo docker pull gingld/fizteh-radio && \
+          sudo docker stop gingld/fizteh-radio && \
+          sudo docker rm gingld/fizteh-radio && \
+          cd ${{ env.DEPLOY_DIR }} && \
+          sudo docker compose up'
