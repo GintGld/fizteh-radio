@@ -37,7 +37,7 @@ jobs:
           export SOURCE_STORAGE=/mnt/base/radio-source && \
           export DB_SQLITE=${{ env.DEPLOY_DIR }}/storage && \
           export FRONTEND_FILES=${{ env.FRONTEND_FILES }}"
-      - name: send compose.yaml
+      - name: Send compose.yaml
         run: |
           scp -i deploy_key.pem -o StrictHostKeyChecking=no -P ${{ env.PORT }} \
           compose.yaml \

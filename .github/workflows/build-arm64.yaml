@@ -1,4 +1,4 @@
-name: Build App
+name: Build ARM64
 
 on:
   workflow_dispatch:
@@ -6,10 +6,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        platform: [linux/arm64, linux/amd64]
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -21,21 +17,12 @@ jobs:
         run: |
           echo ${{ secrets.DOCKERHUB_TOKEN }} | \
           docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
-      - name: Build and push ARM64
-        id: dockerbuildarm64
+      - name: Build and push
+        id: build
         uses: docker/build-push-action@v2
         with:
           context: .
           file: ./Dockerfile
           platforms: linux/arm64
-          push: true
-          tags: gingld/fizteh-radio:latest
-      - name: Build and push x8664
-        id: dockerbuildx8664
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64
           push: true
           tags: gingld/fizteh-radio:latest
