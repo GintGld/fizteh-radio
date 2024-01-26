@@ -4,6 +4,7 @@ docs
 storage
 .github
 public
+scripts/run-compose.sh
 **/*.mp3
 **/.DS_Store
 **/.classpath

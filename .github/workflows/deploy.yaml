@@ -38,14 +38,14 @@ jobs:
           echo "SOURCE_STORAGE=/mnt/base/radio-source" >> ${{ env.COMPOSE_ENV_FILE_PATH }} && \
           echo "DB_SQLITE=${{ env.DEPLOY_DIR }}/storage" >> ${{ env.COMPOSE_ENV_FILE_PATH }} && \
           echo "FRONTEND_FILES=${{ env.FRONTEND_FILES }}" >> ${{ env.COMPOSE_ENV_FILE_PATH }}"
-      - name: Send compose.yaml and nginx.conf
+      - name: Send config files
         run: |
           scp -r -i deploy_key.pem -o StrictHostKeyChecking=no -P ${{ env.PORT }} \
-          compose.yaml config/prod.yaml .nginx \
+          compose.yaml config/prod.yaml .nginx scripts/run-compose.sh \
           ${{ env.HOST }}:${{ env.DEPLOY_DIR }}
       - name: Deploy to server
         run: |
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
           'sudo docker compose stop && \
           cd ${{ env.DEPLOY_DIR }} && \
-          sudo docker compose up -d'
+          sh run-compose.sh'
