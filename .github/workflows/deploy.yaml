@@ -42,7 +42,7 @@ jobs:
         run: |
           scp -r -i deploy_key.pem -o StrictHostKeyChecking=no -P ${{ env.PORT }} \
           compose.yaml config/prod.yaml .nginx/nginx.conf \
-          ${{ env.HOST }}:${{ env.DEPLOY_DIR }}"
+          ${{ env.HOST }}:${{ env.DEPLOY_DIR }}
       - name: Deploy to server
         run: |
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
