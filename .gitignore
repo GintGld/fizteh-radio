@@ -3,6 +3,7 @@ demo/tmp/*
 
 go.work*
 *.sqlite
+.local
 .env
 .log
 Taskfile.yaml
