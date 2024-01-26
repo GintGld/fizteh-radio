@@ -41,7 +41,7 @@ jobs:
       - name: Send compose.yaml and nginx.conf
         run: |
           scp -r -i deploy_key.pem -o StrictHostKeyChecking=no -P ${{ env.PORT }} \
-          compose.yaml config/prod.yaml .nginx/nginx.conf \
+          compose.yaml config/prod.yaml .nginx \
           ${{ env.HOST }}:${{ env.DEPLOY_DIR }}
       - name: Deploy to server
         run: |
