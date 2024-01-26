@@ -1,0 +1,36 @@
+services:
+  radio:
+    image: gingld/fizteh-radio:latest
+    restart: always
+    ports:
+      - 8082:8082
+    volumes:
+      - /$SOURCE_STORAGE:/radio/source:rw
+      - /$DB_SQLITE:/radio/storage:rw
+      - manifest:/radio/tmp/man
+      - content:/radio/tmp/content
+      - tmp_server:/radio/tmp/server
+      - /$PWD/.log/radio:/radio/.log
+    env_file:
+      - .env
+      - compose.env
+  proxy:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - 8080:8080
+    volumes:
+      - /$FRONTEND_FILES:/usr/share/nginx/html:ro
+      - manifest:/manifest:ro
+      - content:/content:ro
+      - /$PWD/.nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /$PWD/.log/nginx:/var/log/nginx/
+    depends_on:
+      - radio
+    env_file:
+      - compose.env
+
+volumes:
+  manifest:
+  content:
+  tmp_server:

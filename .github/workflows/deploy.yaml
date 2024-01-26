@@ -16,6 +16,7 @@ jobs:
       DEPLOY_DIR: /home/fizteh-radio/online-radio/server
       CONFIG_PATH: /home/fizteh-radio/online-radio/server/prod.yaml
       ENV_FILE_PATH: /home/fizteh-radio/online-radio/server/.env
+      COMPOSE_ENV_FILE_PATH: /home/fizteh-radio/online-radio/server/compose.env
       FRONTEND_FILES: /home/fizteh-radio/online-radio/client
     steps:
       - name: Checkout code
@@ -24,29 +25,30 @@ jobs:
         run: |
           echo "$DEPLOY_SSH_KEY" > deploy_key.pem
           sudo chmod 600 deploy_key.pem
-          ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} "mkdir -p ${{ env.DEPLOY_DIR }}"
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       - name: Setup environment
         run: |
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
-          "sudo rm -f ${{ env.ENV_FILE_PATH }} && \
+          "mkdir -p ${{ env.DEPLOY_DIR }} ${{ env.DEPLOY_DIR }}/.nginx ${{ env.DEPLOY_DIR }}/config && \
+          sudo rm -f ${{ env.ENV_FILE_PATH }} ${{ env.COMPOSE_ENV_FILE_PATH }} && \
           echo "CONFIG_PATH=${{ env.CONFIG_PATH }}" >> ${{ env.ENV_FILE_PATH }} && \
           echo "SECRET=${{ secrets.SECRET }}" >> ${{ env.ENV_FILE_PATH }} && \
           echo "ROOT_PASS=${{ secrets.ROOT_PASS }}" >> ${{ env.ENV_FILE_PATH }} && \
-          export SOURCE_STORAGE=/mnt/base/radio-source && \
-          export DB_SQLITE=${{ env.DEPLOY_DIR }}/storage && \
-          export FRONTEND_FILES=${{ env.FRONTEND_FILES }}"
-      - name: Send compose.yaml
+          echo "SOURCE_STORAGE=/mnt/base/radio-source >> ${{ env.COMPOSE_ENV_FILE_PATH }} " && \
+          echo "DB_SQLITE=${{ env.DEPLOY_DIR }}/storage >> ${{ env.COMPOSE_ENV_FILE_PATH }} " && \
+          echo "FRONTEND_FILES=${{ env.FRONTEND_FILES }}" >> ${{ env.COMPOSE_ENV_FILE_PATH }} "
+      - name: Send compose.yaml and nginx.conf
         run: |
           scp -i deploy_key.pem -o StrictHostKeyChecking=no -P ${{ env.PORT }} \
-          compose.yaml \
-          ${{ env.HOST }}:${{ env.DEPLOY_DIR }}
+          config/prod.yaml ${{ env.HOST }}:${{ env.DEPLOY_DIR }}/config && \
+          scp -i deploy_key.pem -o StrictHostKeyChecking=no -P ${{ env.PORT }} \
+          compose.yaml ${{ env.HOST }}:${{ env.DEPLOY_DIR }} && \
+          scp -i deploy_key.pem -o StrictHostKeyChecking=no -P ${{ env.PORT }} \
+          .nginx/nginx.conf ${{ env.HOST }}:${{ env.DEPLOY_DIR }}/.nginx && \
       - name: Deploy to server
         run: |
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
-          'sudo docker pull --platform linux/arm64/v8 gingld/fizteh-radio && \
-          sudo docker stop gingld/fizteh-radio && \
-          sudo docker rm gingld/fizteh-radio && \
+          'sudo docker compose stop && \
           cd ${{ env.DEPLOY_DIR }} && \
-          sudo docker compose up'
+          sudo docker compose up -d'
