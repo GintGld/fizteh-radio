@@ -10,10 +10,9 @@ services:
       - manifest:/radio/tmp/man
       - content:/radio/tmp/content
       - tmp_server:/radio/tmp/server
-      - /$PWD/.log/radio:/radio/.log
+      - ./.log/radio:/radio/.log      
     env_file:
       - .env
-      - compose.env
   proxy:
     image: nginx:alpine
     restart: always
@@ -23,12 +22,10 @@ services:
       - /$FRONTEND_FILES:/usr/share/nginx/html:ro
       - manifest:/manifest:ro
       - content:/content:ro
-      - /$PWD/.nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - /$PWD/.log/nginx:/var/log/nginx/
+      - ./.nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./.log/nginx:/var/log/nginx/
     depends_on:
       - radio
-    env_file:
-      - compose.env
 
 volumes:
   manifest:
