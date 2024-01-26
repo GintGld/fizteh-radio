@@ -30,12 +30,18 @@ jobs:
       - name: Setup environment
         run: |
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
-          "mkdir -p ${{ env.DEPLOY_DIR }} ${{ env.DEPLOY_DIR }}/.nginx ${{ env.DEPLOY_DIR }}/config && \
-          sudo rm -f ${{ env.ENV_FILE_PATH }} ${{ env.COMPOSE_ENV_FILE_PATH }} && \
+          "mkdir -p ${{ env.DEPLOY_DIR }} ${{ env.DEPLOY_DIR }}/.nginx ${{ env.DEPLOY_DIR }}/config"
+      - name: dd
+        run: |
+          ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
+          "sudo rm -f ${{ env.ENV_FILE_PATH }} ${{ env.COMPOSE_ENV_FILE_PATH }} && \
           echo "CONFIG_PATH=${{ env.CONFIG_PATH }}" >> ${{ env.ENV_FILE_PATH }} && \
           echo "SECRET=${{ secrets.SECRET }}" >> ${{ env.ENV_FILE_PATH }} && \
           echo "ROOT_PASS=${{ secrets.ROOT_PASS }}" >> ${{ env.ENV_FILE_PATH }} && \
-          echo "SOURCE_STORAGE=/mnt/base/radio-source >> ${{ env.COMPOSE_ENV_FILE_PATH }} " && \
+      - name: ff
+        run: |
+          ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
+          "echo "SOURCE_STORAGE=/mnt/base/radio-source >> ${{ env.COMPOSE_ENV_FILE_PATH }} "
           echo "DB_SQLITE=${{ env.DEPLOY_DIR }}/storage >> ${{ env.COMPOSE_ENV_FILE_PATH }} " && \
           echo "FRONTEND_FILES=${{ env.FRONTEND_FILES }}" >> ${{ env.COMPOSE_ENV_FILE_PATH }} "
       - name: Send compose.yaml and nginx.conf
