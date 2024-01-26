@@ -47,5 +47,5 @@ jobs:
         run: |
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
           'cd ${{ env.DEPLOY_DIR }} && \
-          sudo docker compose stop && \
+          sudo docker compose --env-file compose.env stop && \
           sudo docker compose --env-file compose.env up -d'
