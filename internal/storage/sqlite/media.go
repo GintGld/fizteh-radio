@@ -43,7 +43,7 @@ func (s *Storage) AllMedia(ctx context.Context) ([]models.Media, error) {
 		media.ID = ptr.Ptr(id)
 		media.Name = ptr.Ptr(name)
 		media.Author = ptr.Ptr(author)
-		media.Duration = ptr.Ptr(time.Duration(durationMs) * time.Millisecond)
+		media.Duration = ptr.Ptr(time.Duration(durationMs) * time.Microsecond)
 
 		library = append(library, media)
 

@@ -3,12 +3,15 @@ package tests
 import (
 	"encoding/json"
 	"net/url"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/brianvoe/gofakeit/v6"
 	"github.com/gavv/httpexpect/v2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/GintGld/fizteh-radio/internal/lib/ffmpeg"
 	ptr "github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/tests/suite"
@@ -42,9 +45,17 @@ func TestCreateNewMedia(t *testing.T) {
 		ContainsOnly("id")
 }
 
-// TODO check duration correctness
-
 func TestGetMedia(t *testing.T) {
+	sourceFile := "./source/sample-9s.mp3"
+
+	durationStr, err := ffmpeg.GetMeta(&sourceFile, "duration")
+	require.NoError(t, err)
+
+	seconds, err := strconv.ParseFloat(durationStr, 64)
+	require.NoError(t, err)
+
+	duration := time.Duration(seconds * 1000000000)
+
 	token, err := suite.RootLogin()
 	require.NoError(t, err)
 
@@ -63,7 +74,7 @@ func TestGetMedia(t *testing.T) {
 	id := e.POST("/library/media").
 		WithHeader("Authorization", "Bearer "+token).
 		WithMultipart().
-		WithFile("source", "./source/sample-9s.mp3").
+		WithFile("source", sourceFile).
 		WithFormField("media", string(mediaStr)).
 		Expect().
 		Status(200).
@@ -84,7 +95,7 @@ func TestGetMedia(t *testing.T) {
 	json.Path("$.media").Object().Keys().ContainsOnly("id", "name", "author", "duration")
 	json.Path("$.media.name").String().IsEqual(*media.Name)
 	json.Path("$.media.author").String().IsEqual(*media.Author)
-	// json.Path("$.media.duration").Number()
+	json.Path("$.media.duration").Number().IsEqual(duration)
 }
 
 func TestGetNotExistingMedia(t *testing.T) {
