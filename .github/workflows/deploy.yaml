@@ -16,8 +16,9 @@ jobs:
       DEPLOY_DIR: /home/fizteh-radio/online-radio/server
       CONFIG_PATH: /home/fizteh-radio/online-radio/server/prod.yaml
       ENV_FILE_PATH: /home/fizteh-radio/online-radio/server/.env
-      COMPOSE_ENV_FILE_PATH: /home/fizteh-radio/online-radio/server/compose.env
+      COMPOSE_ENV: /home/fizteh-radio/online-radio/server/compose.env
       FRONTEND_FILES: /home/fizteh-radio/online-radio/client
+      SSL: /home/fizteh-radio/.ssl/www.radiomipt.ru
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -31,13 +32,14 @@ jobs:
         run: |
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
           "mkdir -p ${{ env.DEPLOY_DIR }} ${{ env.DEPLOY_DIR }}/.nginx ${{ env.DEPLOY_DIR }}/config && \
-          sudo rm -f ${{ env.ENV_FILE_PATH }} ${{ env.COMPOSE_ENV_FILE_PATH }} && \
+          sudo rm -f ${{ env.ENV_FILE_PATH }} ${{ env.COMPOSE_ENV }} && \
           echo "CONFIG_PATH=/radio/prod.yaml" >> ${{ env.ENV_FILE_PATH }} && \
           echo "SECRET=${{ secrets.SECRET }}" >> ${{ env.ENV_FILE_PATH }} && \
           echo "ROOT_PASS=${{ secrets.ROOT_PASS }}" >> ${{ env.ENV_FILE_PATH }} && \
-          echo "SOURCE_STORAGE=/mnt/base/radio-source" >> ${{ env.COMPOSE_ENV_FILE_PATH }} && \
-          echo "DB_SQLITE=${{ env.DEPLOY_DIR }}/storage" >> ${{ env.COMPOSE_ENV_FILE_PATH }} && \
-          echo "FRONTEND_FILES=${{ env.FRONTEND_FILES }}" >> ${{ env.COMPOSE_ENV_FILE_PATH }}"
+          echo "SOURCE_STORAGE=/mnt/base/radio-source" >> ${{ env.COMPOSE_ENV }} && \
+          echo "DB_SQLITE=${{ env.DEPLOY_DIR }}/storage" >> ${{ env.COMPOSE_ENV }} && \
+          echo "FRONTEND_FILES=${{ env.FRONTEND_FILES }}" >> ${{ env.COMPOSE_ENV }} && \
+          echo "SSL=${{ env.SSL }}" >> ${{ env.COMPOSE_ENV  }}"
       - name: Send config files
         run: |
           scp -r -i deploy_key.pem -o StrictHostKeyChecking=no -P ${{ env.PORT }} \
@@ -47,5 +49,5 @@ jobs:
         run: |
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
           'cd ${{ env.DEPLOY_DIR }} && \
-          sudo docker compose --env-file compose.env stop && \
-          sudo docker compose --env-file compose.env up -d'
+          sudo docker compose --env-file ${{ env.COMPOSE_ENV }} stop && \
+          sudo docker compose --env-file ${{ env.COMPOSE_ENV }} up -d'
