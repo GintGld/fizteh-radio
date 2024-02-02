@@ -48,13 +48,9 @@ func TestCreateNewEditor(t *testing.T) {
 
 	e.POST("/root/editors").
 		WithHeader("Authorization", "Bearer "+token).
-		WithJSON(struct {
-			User models.EditorIn `json:"editor"`
-		}{
-			User: models.EditorIn{
-				Login: login,
-				Pass:  pass,
-			},
+		WithJSON(models.EditorIn{
+			Login: login,
+			Pass:  pass,
 		}).Expect().
 		Status(200).
 		JSON().
@@ -79,13 +75,9 @@ func TestDoubleCreateEditor(t *testing.T) {
 	// create user correctly
 	e.POST("/root/editors").
 		WithHeader("Authorization", "Bearer "+token).
-		WithJSON(struct {
-			User models.EditorIn `json:"editor"`
-		}{
-			User: models.EditorIn{
-				Login: login,
-				Pass:  pass,
-			},
+		WithJSON(models.EditorIn{
+			Login: login,
+			Pass:  pass,
 		}).Expect().
 		Status(200).
 		JSON().
@@ -96,13 +88,9 @@ func TestDoubleCreateEditor(t *testing.T) {
 	// trying to create user with same login
 	resp := e.POST("/root/editors").
 		WithHeader("Authorization", "Bearer "+token).
-		WithJSON(struct {
-			User models.EditorIn `json:"editor"`
-		}{
-			User: models.EditorIn{
-				Login: login,
-				Pass:  pass,
-			},
+		WithJSON(models.EditorIn{
+			Login: login,
+			Pass:  pass,
 		}).Expect().
 		Status(400)
 
@@ -128,13 +116,9 @@ func TestGetEditor(t *testing.T) {
 	// Create new editors
 	id := e.POST("/root/editors").
 		WithHeader("Authorization", "Bearer "+token).
-		WithJSON(struct {
-			User models.EditorIn `json:"editor"`
-		}{
-			User: models.EditorIn{
-				Login: login,
-				Pass:  pass,
-			},
+		WithJSON(models.EditorIn{
+			Login: login,
+			Pass:  pass,
 		}).Expect().
 		Status(200).
 		JSON().
@@ -195,13 +179,9 @@ func TestDeleteEditor(t *testing.T) {
 	// Create new editor
 	id := e.POST("/root/editors").
 		WithHeader("Authorization", "Bearer "+token).
-		WithJSON(struct {
-			User models.EditorIn `json:"editor"`
-		}{
-			User: models.EditorIn{
-				Login: login,
-				Pass:  pass,
-			},
+		WithJSON(models.EditorIn{
+			Login: login,
+			Pass:  pass,
 		}).Expect().
 		Status(200).
 		JSON().
