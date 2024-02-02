@@ -220,7 +220,9 @@ func (c *Content) deleteCache() error {
 		slog.String("op", op),
 	)
 
-	files, err := os.ReadDir(c.path + "/.cache")
+	cacheDir := c.path + "/.cache"
+
+	files, err := os.ReadDir(cacheDir)
 	if err != nil {
 		log.Error(
 			"failed to get list of content dir",
@@ -232,12 +234,12 @@ func (c *Content) deleteCache() error {
 	errAll := make([]error, 0)
 	for _, file := range files {
 		log.Debug("", slog.String("item", file.Name()))
-		err = os.RemoveAll(c.path + "/" + file.Name())
+		err = os.RemoveAll(cacheDir + file.Name())
 		if err != nil {
 			log.Error(
 				"failed to delete",
 				slog.String("item", file.Name()),
-				slog.String("dir", c.path),
+				slog.String("cache dir", cacheDir),
 				sl.Err(err),
 			)
 			errAll = append(errAll, err)
@@ -272,15 +274,17 @@ func (c *Content) deleteAll() error {
 	errAll := make([]error, 0)
 	for _, file := range files {
 		log.Debug("", slog.String("item", file.Name()))
-		err = os.RemoveAll(c.path + "/" + file.Name())
-		if err != nil {
-			log.Error(
-				"failed to delete",
-				slog.String("item", file.Name()),
-				slog.String("dir", c.path),
-				sl.Err(err),
-			)
-			errAll = append(errAll, err)
+		if file.Name() != ".cache" {
+			err = os.RemoveAll(c.path + "/" + file.Name())
+			if err != nil {
+				log.Error(
+					"failed to delete",
+					slog.String("item", file.Name()),
+					slog.String("dir", c.path),
+					sl.Err(err),
+				)
+				errAll = append(errAll, err)
+			}
 		}
 	}
 	if len(errAll) > 0 {
