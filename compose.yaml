@@ -24,7 +24,7 @@ services:
       - content:/content:ro
       - ./.nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./.log/nginx:/var/log/nginx
-      - /$SSl:/etc/ssl:ro
+      - /$SSL:/etc/ssl:ro
     depends_on:
       - radio
 
