@@ -120,17 +120,24 @@ func (rootCtr *rootController) editor(c *fiber.Ctx) error {
 
 // newEditor creates new editor
 func (rootCtr *rootController) newEditor(c *fiber.Ctx) error {
-	type request struct {
-		User models.EditorIn `json:"editor"`
-	}
+	var form models.EditorIn
 
-	form := new(request)
-
-	if err := c.BodyParser(form); err != nil {
+	if err := c.BodyParser(&form); err != nil {
 		return c.SendStatus(fiber.StatusBadRequest)
 	}
 
-	id, err := rootCtr.srv.RegisterNewEditor(context.TODO(), form.User)
+	if form.Login == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "login can't be empty",
+		})
+	}
+	if form.Pass == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "password can't be empty",
+		})
+	}
+
+	id, err := rootCtr.srv.RegisterNewEditor(context.TODO(), form)
 	if err != nil {
 		if errors.Is(err, service.ErrEditorExists) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
