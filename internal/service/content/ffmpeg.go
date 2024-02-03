@@ -234,7 +234,7 @@ func (c *Content) deleteCache() error {
 	errAll := make([]error, 0)
 	for _, file := range files {
 		log.Debug("", slog.String("item", file.Name()))
-		err = os.Remove(cacheDir + file.Name())
+		err = os.Remove(cacheDir + "/" + file.Name())
 		if err != nil {
 			log.Error(
 				"failed to delete",
