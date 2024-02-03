@@ -1,6 +1,7 @@
 services:
   radio:
     image: gingld/fizteh-radio:latest
+    container_name: radio
     restart: always
     ports:
       - 8082:8082
