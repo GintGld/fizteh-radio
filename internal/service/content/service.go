@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -49,6 +50,24 @@ type Media interface {
 
 type Source interface {
 	LoadSource(ctx context.Context, destDir string, media models.Media) (string, error)
+}
+
+func (c *Content) Init() error {
+	const op = "Content.Init"
+
+	log := c.log.With(
+		slog.String("op", op),
+	)
+
+	if err := os.MkdirAll(c.path+"/.cache", 0777); err != nil {
+		log.Error(
+			"failed to create cache dir",
+			slog.String("dir", c.path),
+			sl.Err(err),
+		)
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	return nil
 }
 
 // Generate generates dash content

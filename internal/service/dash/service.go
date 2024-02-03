@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -53,6 +54,7 @@ type Manifest interface {
 }
 
 type Content interface {
+	Init() error
 	Generate(ctx context.Context, segment models.Segment) error
 	ClearCache() error
 	CleanUp()
@@ -80,6 +82,11 @@ func (d *Dash) Run(ctx context.Context) error {
 	// After loop stops, all generated files will be deleted
 	defer d.content.CleanUp()
 	defer d.manifest.CleanUp()
+
+	if err := d.content.Init(); err != nil {
+		log.Error("failed to init content maker", sl.Err(err))
+		return fmt.Errorf("%s: %w", op, err)
+	}
 
 mainloop:
 	for {
