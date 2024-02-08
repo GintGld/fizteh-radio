@@ -172,3 +172,20 @@ func (s *Storage) DeleteSegment(ctx context.Context, id int64) error {
 
 	return nil
 }
+
+// ClearSchedule clears schedule from given timestamp.
+func (s *Storage) ClearSchedule(ctx context.Context, from time.Time) error {
+	const op = "storage.sqlite.ClearSchedule"
+
+	stmt, err := s.db.Prepare("DELETE FROM schedule WHERE start_mus + (stop_cut - begin_cut) >= ?")
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	if _, err := stmt.ExecContext(ctx, from.UnixMicro()); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}

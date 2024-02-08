@@ -25,6 +25,7 @@ type ScheduleStorage interface {
 	SaveSegment(ctx context.Context, segment models.Segment) (int64, error)
 	Segment(ctx context.Context, period int64) (models.Segment, error)
 	DeleteSegment(ctx context.Context, period int64) error
+	ClearSchedule(ctx context.Context, stamp time.Time) error
 }
 
 type MediaStorage interface {
@@ -171,6 +172,27 @@ func (s *Schedule) DeleteSegment(ctx context.Context, id int64) error {
 	}
 
 	log.Info("deleted segment", slog.Int64("id", id))
+
+	return nil
+}
+
+// ClearSchedule clears schedule from given timestamp.
+func (s *Schedule) ClearSchedule(ctx context.Context, from time.Time) error {
+	const op = "Schedule.ClearSchedule"
+
+	log := s.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	log.Info("clearing segments", slog.Time("from", from))
+
+	if err := s.schStorage.ClearSchedule(ctx, from); err != nil {
+		log.Error("failed to clear schedule", slog.Time("from", from))
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	log.Info("cleared schedule", slog.Time("from", from))
 
 	return nil
 }

@@ -22,6 +22,7 @@ type Schedule interface {
 	NewSegment(ctx context.Context, segment models.Segment) (int64, error)
 	Segment(ctx context.Context, id int64) (models.Segment, error)
 	DeleteSegment(ctx context.Context, id int64) error
+	ClearSchedule(ctx context.Context, from time.Time) error
 }
 
 func New(
@@ -40,6 +41,7 @@ func New(
 	app.Post("/", schCtr.newSegment)
 	app.Get("/:id", schCtr.segment)
 	app.Delete("/:id", schCtr.deleteSegment)
+	app.Delete("/", schCtr.clearSchedule)
 
 	return app
 }
@@ -180,6 +182,24 @@ func (schCtr *scheduleController) deleteSegment(c *fiber.Ctx) error {
 				"error": "segment not found",
 			})
 		}
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	return c.SendStatus(fiber.StatusOK)
+}
+
+// clearSchedule clear schedule from given timestamp
+func (schCtr *scheduleController) clearSchedule(c *fiber.Ctx) error {
+	fromInt := c.QueryInt("from", -1)
+	if fromInt == -1 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": `"from" not defined`,
+		})
+	}
+
+	from := time.Unix(int64(fromInt), 0)
+
+	if err := schCtr.schSrv.ClearSchedule(context.TODO(), from); err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
