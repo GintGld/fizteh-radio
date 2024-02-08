@@ -16,8 +16,6 @@ import (
 	"github.com/GintGld/fizteh-radio/tests/suite"
 )
 
-// TODO: use sourceFile constant
-
 const (
 	sourceFile     = "./source/sample-9s.mp3"
 	sourceDuration = time.Second * 9 // approximate duration
