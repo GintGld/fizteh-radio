@@ -40,7 +40,7 @@ func TestCreateNewSegment(t *testing.T) {
 	mediaId := e.POST("/library/media").
 		WithHeader("Authorization", "Bearer "+token).
 		WithMultipart().
-		WithFile("source", "./source/sample-9s.mp3").
+		WithFile("source", sourceFile).
 		WithFormField("media", string(mediaStr)).
 		Expect().Status(200).
 		JSON().
@@ -84,7 +84,7 @@ func TestGetSegment(t *testing.T) {
 	mediaID := e.POST("/library/media").
 		WithHeader("Authorization", "Bearer "+token).
 		WithMultipart().
-		WithFile("source", "./source/sample-9s.mp3").
+		WithFile("source", sourceFile).
 		WithFormField("media", string(mediaStr)).
 		Expect().
 		Status(200).
@@ -172,7 +172,7 @@ func TestDeleteSegment(t *testing.T) {
 	mediaID := e.POST("/library/media").
 		WithHeader("Authorization", "Bearer "+token).
 		WithMultipart().
-		WithFile("source", "./source/sample-9s.mp3").
+		WithFile("source", sourceFile).
 		WithFormField("media", string(mediaStr)).
 		Expect().
 		Status(200).
@@ -276,7 +276,7 @@ func TestClearSchedule(t *testing.T) {
 	mediaId := e.POST("/library/media").
 		WithHeader("Authorization", "Bearer "+token).
 		WithMultipart().
-		WithFile("source", "./source/sample-9s.mp3").
+		WithFile("source", sourceFile).
 		WithFormField("media", string(mediaStr)).
 		Expect().Status(200).
 		JSON().
