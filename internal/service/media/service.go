@@ -186,8 +186,8 @@ func (l *Media) AllTags(ctx context.Context) (models.TagList, error) {
 }
 
 // SaveTag registers new tag.
-func (l *Media) Savetag(ctx context.Context, tag models.Tag) (int64, error) {
-	const op = "Media.AllTags"
+func (l *Media) SaveTag(ctx context.Context, tag models.Tag) (int64, error) {
+	const op = "Media.SaveTag"
 
 	log := l.log.With(
 		slog.String("op", op),

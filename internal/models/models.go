@@ -4,6 +4,8 @@ import "time"
 
 // TODO: split into different files when become too big
 
+// TODO: make own json (un)marshalers
+
 type EditorIn struct {
 	Login string `json:"login"`
 	Pass  string `json:"pass"`
