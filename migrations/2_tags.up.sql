@@ -18,4 +18,5 @@ CREATE TABLE IF NOT EXISTS libraryTag (
     CONSTRAINT fk_tag_id     FOREIGN KEY (tag_id)   REFERENCES tag (id)     ON DELETE CASCADE
 );
 
--- TODO: fulfill tagTypes
+INSERT INTO tagType (name) VALUES
+("format"), ("genre"), ("playlist"), ("mood"), ("language");
