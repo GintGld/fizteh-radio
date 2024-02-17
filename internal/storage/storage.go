@@ -9,5 +9,7 @@ var (
 	ErrMediaExists   = errors.New("media exists")
 	ErrMediaNotFound = errors.New("media not found")
 
+	ErrTagExists = errors.New("tag exists")
+
 	ErrSegmentNotFound = errors.New("segment not found")
 )
