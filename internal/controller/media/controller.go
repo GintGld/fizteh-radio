@@ -42,7 +42,7 @@ func New(
 	app.Get("/tag/types", mediaCtr.tagTypes)
 	app.Get("/tag", mediaCtr.allTags)
 	app.Post("/tag", mediaCtr.newTag)
-	app.Delete("/tag", mediaCtr.deleteTag)
+	app.Delete("/tag/:id", mediaCtr.deleteTag)
 
 	return app
 }
@@ -297,6 +297,10 @@ func (mediaCtr *mediaController) allTags(c *fiber.Ctx) error {
 func (mediaCtr *mediaController) newTag(c *fiber.Ctx) error {
 	var request struct {
 		Tag models.Tag `json:"tag"`
+	}
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.SendStatus(fiber.StatusBadRequest)
 	}
 
 	if request.Tag.Name == "" {

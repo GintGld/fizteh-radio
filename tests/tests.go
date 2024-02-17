@@ -15,3 +15,5 @@ var (
 	rootPass = os.Getenv("ROOT_PASS")
 	secret   = os.Getenv("SECRET")
 )
+
+// TODO: try to use fiber.App.test method for testing

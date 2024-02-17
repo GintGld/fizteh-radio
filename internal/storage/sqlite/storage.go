@@ -13,14 +13,14 @@ type Storage struct {
 	db *sql.DB
 
 	tagCache tagCacheStruct
-	tagTypes []models.TagType
 }
 
 // Cache available tag list since it does not update frequently
 // and not going to be large.
 type tagCacheStruct struct {
-	TagList models.TagList
-	Mutex   sync.Mutex
+	tagTypes []models.TagType
+	tagList  models.TagList
+	mutex    sync.Mutex
 }
 
 func New(storagePath string) (*Storage, error) {
@@ -34,7 +34,7 @@ func New(storagePath string) (*Storage, error) {
 	st := &Storage{
 		db: db,
 		tagCache: tagCacheStruct{
-			TagList: make(models.TagList, 0),
+			tagList: make(models.TagList, 0),
 		},
 	}
 

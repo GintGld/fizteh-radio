@@ -326,15 +326,15 @@ func (s *Storage) DeleteMedia(ctx context.Context, id int64) error {
 
 // TagTypes return available tag types. Returned error is always nil.
 func (s *Storage) TagTypes(ctx context.Context) (models.TagTypes, error) {
-	return s.tagTypes, nil
+	return s.tagCache.tagTypes, nil
 }
 
 // AllTags returns all registered tags. Returned error is always nil.
 func (s *Storage) AllTags(ctx context.Context) (models.TagList, error) {
-	s.tagCache.Mutex.Lock()
-	defer s.tagCache.Mutex.Unlock()
+	s.tagCache.mutex.Lock()
+	defer s.tagCache.mutex.Unlock()
 
-	actualTagList := append(models.TagList(nil), s.tagCache.TagList...)
+	actualTagList := append(models.TagList(nil), s.tagCache.tagList...)
 
 	return actualTagList, nil
 }
@@ -350,19 +350,19 @@ func (s *Storage) updateTagTypes(ctx context.Context) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	rows, err := stmt.Query(ctx)
+	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	var tagType models.TagType
-	s.tagTypes = make(models.TagTypes, 0)
+	s.tagCache.tagTypes = make(models.TagTypes, 0)
 
 	for rows.Next() {
 		if err := rows.Scan(&tagType.ID, &tagType.Name); err != nil {
 			return fmt.Errorf("%s: %w", op, err)
 		}
-		s.tagTypes = append(s.tagTypes, tagType)
+		s.tagCache.tagTypes = append(s.tagCache.tagTypes, tagType)
 	}
 
 	return nil
@@ -374,34 +374,42 @@ func (s *Storage) updateTagTypes(ctx context.Context) error {
 func (s *Storage) updateTagList(ctx context.Context) error {
 	const op = "storage.sqlite.updateTagList"
 
-	stmt, err := s.db.PrepareContext(ctx, "SELECT name, type FROM tag")
+	stmt, err := s.db.PrepareContext(ctx, "SELECT name, type_id FROM tag")
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	s.tagCache.Mutex.Lock()
+	s.tagCache.mutex.Lock()
+	defer s.tagCache.mutex.Unlock()
 
-	rows, err := stmt.Query()
+	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	defer rows.Close()
 
 	// Expected that usually list length increases
-	oldLength := len(s.tagCache.TagList)
-	s.tagCache.TagList = make(models.TagList, 0, oldLength)
+	oldLength := len(s.tagCache.tagList)
+	s.tagCache.tagList = make(models.TagList, 0, oldLength)
 
 	var tag models.Tag
 
+rows_loop:
 	for rows.Next() {
-		if err := rows.Scan(&tag.Name, &tag.Type); err != nil {
+		if err := rows.Scan(&tag.Name, &tag.Type.ID); err != nil {
 			return fmt.Errorf("%s: %w", op, err)
 		}
 
-		s.tagCache.TagList = append(s.tagCache.TagList, tag)
-	}
+		for _, tagType := range s.tagCache.tagTypes {
+			if tagType.ID == tag.Type.ID {
+				tag.Type.Name = tagType.Name
+				s.tagCache.tagList = append(s.tagCache.tagList, tag)
+			}
+		}
 
-	s.tagCache.Mutex.Unlock()
+		s.tagCache.tagList = append(s.tagCache.tagList, tag)
+		continue rows_loop
+	}
 
 	return nil
 }
@@ -412,8 +420,8 @@ func (s *Storage) SaveTag(ctx context.Context, tag models.Tag) (int64, error) {
 
 	defer s.updateTagList(ctx)
 
-	s.tagCache.Mutex.Lock()
-	defer s.tagCache.Mutex.Unlock()
+	s.tagCache.mutex.Lock()
+	defer s.tagCache.mutex.Unlock()
 
 	stmt, err := s.db.PrepareContext(ctx, `
 		INSERT INTO tag(name, type_id)
@@ -447,8 +455,8 @@ func (s *Storage) DeleteTag(ctx context.Context, id int64) error {
 
 	defer s.updateTagList(ctx)
 
-	s.tagCache.Mutex.Lock()
-	defer s.tagCache.Mutex.Unlock()
+	s.tagCache.mutex.Lock()
+	defer s.tagCache.mutex.Unlock()
 
 	stmt, err := s.db.Prepare("DELETE FROM tag WHERE id = ?")
 	if err != nil {

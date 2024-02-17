@@ -185,9 +185,143 @@ func TestDeleteNotExistingMedia(t *testing.T) {
 	json.Path("$.error").String().IsEqualFold("media not found")
 }
 
+func TestTagTypes(t *testing.T) {
+	token, err := suite.RootLogin()
+	require.NoError(t, err)
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   cfg.Address,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	json := e.GET("/library/tag/types").
+		WithHeader("Authorization", "Bearer "+token).
+		Expect().
+		Status(200).
+		JSON()
+
+	json.Object().Keys().ContainsOnly("types")
+	for _, value := range json.Path("$.types").Array().Iter() {
+		value.Object().Keys().ContainsOnly("id", "name")
+	}
+}
+
+func TestNewTag(t *testing.T) {
+	token, err := suite.RootLogin()
+	require.NoError(t, err)
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   cfg.Address,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	res := e.POST("/library/tag").
+		WithHeader("Authorization", "Bearer "+token).
+		WithJSON(struct {
+			Tag models.Tag `json:"tag"`
+		}{
+			Tag: randomTag(),
+		}).
+		Expect()
+
+	res.Status(200).
+		JSON().
+		Object().
+		Keys().
+		ContainsOnly("id")
+}
+
+func TestAllTags(t *testing.T) {
+	token, err := suite.RootLogin()
+	require.NoError(t, err)
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   cfg.Address,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	json := e.GET("/library/tag").
+		WithHeader("Authorization", "Bearer "+token).
+		Expect().
+		Status(200).
+		JSON()
+
+	json.Object().Keys().ContainsOnly("tags")
+	for _, value := range json.Path("$.tags").Array().Iter() {
+		value.Object().Keys().ContainsOnly("id", "name", "type")
+		value.Path("$.type").Object().Keys().ContainsOnly("id", "name")
+	}
+}
+
+func TestDeleteTag(t *testing.T) {
+	token, err := suite.RootLogin()
+	require.NoError(t, err)
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   cfg.Address,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	res := e.POST("/library/tag").
+		WithHeader("Authorization", "Bearer "+token).
+		WithJSON(struct {
+			Tag models.Tag `json:"tag"`
+		}{
+			Tag: randomTag(),
+		}).
+		Expect()
+
+	idRaw := res.
+		Status(200).
+		JSON().
+		Path("$.id").
+		Number().
+		Raw()
+	id := int(idRaw)
+
+	e.DELETE("/library/tag/{id}", id).
+		WithHeader("Authorization", "Bearer "+token).
+		Expect().
+		Status(200)
+}
+
+func TestDeleteNotExistingTag(t *testing.T) {
+	token, err := suite.RootLogin()
+	require.NoError(t, err)
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   cfg.Address,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	// Trying to delete not existing editor
+	json := e.DELETE("/library/tag/{id}", gofakeit.Uint32()).
+		WithHeader("Authorization", "Bearer "+token).
+		Expect().
+		Status(400).
+		JSON()
+
+	json.Object().Keys().ContainsOnly("error")
+	json.Path("$.error").String().IsEqualFold("tag not found")
+}
+
 func randomMedia() models.Media {
 	return models.Media{
 		Name:   ptr.Ptr(gofakeit.MovieName()),
 		Author: ptr.Ptr(gofakeit.Name()),
+	}
+}
+
+func randomTag() models.Tag {
+	return models.Tag{
+		Name: gofakeit.Adjective(),
+		Type: models.TagType{
+			ID: gofakeit.Int64(),
+		},
 	}
 }
