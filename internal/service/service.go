@@ -12,5 +12,8 @@ var (
 
 	ErrMediaNotFound = errors.New("editor not found")
 
+	ErrTagExists   = errors.New("tag exists")
+	ErrTagNotFound = errors.New("tag not found")
+
 	ErrSegmentNotFound = errors.New("segment not found")
 )

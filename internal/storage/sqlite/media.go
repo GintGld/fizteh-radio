@@ -324,12 +324,12 @@ func (s *Storage) DeleteMedia(ctx context.Context, id int64) error {
 	return nil
 }
 
-// TagTypes return available tag types.
+// TagTypes return available tag types. Returned error is always nil.
 func (s *Storage) TagTypes(ctx context.Context) (models.TagTypes, error) {
 	return s.tagTypes, nil
 }
 
-// AllTags returns all registered tags.
+// AllTags returns all registered tags. Returned error is always nil.
 func (s *Storage) AllTags(ctx context.Context) (models.TagList, error) {
 	s.tagCache.Mutex.Lock()
 	defer s.tagCache.Mutex.Unlock()
@@ -442,7 +442,7 @@ func (s *Storage) SaveTag(ctx context.Context, tag models.Tag) (int64, error) {
 }
 
 // DeleteTag deletes tag by its name
-func (s *Storage) DeleteTag(ctx context.Context, tag models.Tag) error {
+func (s *Storage) DeleteTag(ctx context.Context, id int64) error {
 	const op = "storage.sqlite.DeleteTag"
 
 	defer s.updateTagList(ctx)
@@ -450,13 +450,13 @@ func (s *Storage) DeleteTag(ctx context.Context, tag models.Tag) error {
 	s.tagCache.Mutex.Lock()
 	defer s.tagCache.Mutex.Unlock()
 
-	stmt, err := s.db.Prepare("DELETE FROM tag WHERE name = ?")
+	stmt, err := s.db.Prepare("DELETE FROM tag WHERE id = ?")
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	defer stmt.Close()
 
-	res, err := stmt.ExecContext(ctx, tag.Name)
+	res, err := stmt.ExecContext(ctx, id)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -465,7 +465,7 @@ func (s *Storage) DeleteTag(ctx context.Context, tag models.Tag) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	if affectedRows == 0 {
-		return storage.ErrMediaNotFound
+		return storage.ErrTagNotFound
 	}
 
 	return nil

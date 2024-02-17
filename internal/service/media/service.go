@@ -22,6 +22,10 @@ type MediaStorage interface {
 	SaveMedia(ctx context.Context, newMedia models.Media) (int64, error)
 	Media(ctx context.Context, id int64) (models.Media, error)
 	DeleteMedia(ctx context.Context, id int64) error
+	TagTypes(ctx context.Context) (models.TagTypes, error)
+	AllTags(ctx context.Context) (models.TagList, error)
+	SaveTag(ctx context.Context, tag models.Tag) (int64, error)
+	DeleteTag(ctx context.Context, id int64) error
 }
 
 func New(
@@ -134,6 +138,96 @@ func (l *Media) DeleteMedia(ctx context.Context, id int64) error {
 		if errors.Is(err, storage.ErrMediaNotFound) {
 			log.Warn("media not found", slog.Int64("id", id))
 			return fmt.Errorf("%s: %w", op, service.ErrMediaNotFound)
+		}
+		log.Error("failed to delete media", slog.Int64("id", id))
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
+// TagTypes returns available tag types.
+func (l *Media) TagTypes(ctx context.Context) (models.TagTypes, error) {
+	const op = "Media.TagTypes"
+
+	log := l.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	tagTypes, err := l.mediaStorage.TagTypes(ctx)
+	if err != nil {
+		log.Error("failed to get tag types", sl.Err(err))
+		return models.TagTypes{}, err
+	}
+
+	log.Info("got tag types")
+
+	return tagTypes, nil
+}
+
+// AllTags return all registered tags.
+func (l *Media) AllTags(ctx context.Context) (models.TagList, error) {
+	const op = "Media.AllTags"
+
+	log := l.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	tagList, err := l.mediaStorage.AllTags(ctx)
+	if err != nil {
+		log.Error("failed to get tag list", sl.Err(err))
+	}
+
+	log.Info("got all tags")
+
+	return tagList, nil
+}
+
+// SaveTag registers new tag.
+func (l *Media) Savetag(ctx context.Context, tag models.Tag) (int64, error) {
+	const op = "Media.AllTags"
+
+	log := l.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	log.Info("saving tag", slog.String("name", tag.Name))
+
+	id, err := l.mediaStorage.SaveTag(ctx, tag)
+	if err != nil {
+		if errors.Is(err, storage.ErrTagExists) {
+			log.Warn("tag exists", slog.String("name", tag.Name))
+			return 0, service.ErrTagExists
+		}
+		log.Error(
+			"failed to register tag",
+			slog.String("name", tag.Name),
+			sl.Err(err),
+		)
+	}
+
+	log.Info("got all tags")
+
+	return id, nil
+}
+
+func (l *Media) DeleteTag(ctx context.Context, id int64) error {
+	const op = "Media.DeleteTag"
+
+	log := l.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	log.Info("deleting tag", slog.Int64("id", id))
+
+	if err := l.mediaStorage.DeleteTag(ctx, id); err != nil {
+		if errors.Is(err, storage.ErrTagNotFound) {
+			log.Warn("tag not found", slog.Int64("id", id))
+			return fmt.Errorf("%s: %w", op, service.ErrTagNotFound)
 		}
 		log.Error("failed to delete media", slog.Int64("id", id))
 		return fmt.Errorf("%s: %w", op, err)
