@@ -5,13 +5,13 @@ info:
     This is a Phystech Radio specification.
   version: 0.0.1
 servers:
-  - url: http://localhost:8080
   - url: https://radiomipt.ru
 tags:
   - name: Auth
   - name: 'Root: Editors'
   - name: 'Root: Radio'
   - name: 'Library: Media'
+  - name: 'Library: Tag'
   - name: Schedule
   - name: Radio
 
@@ -267,6 +267,101 @@ paths:
                     enum:
                       - 'bad id'
                       - 'editor not found'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /admin/library/tag/types:
+    get:
+      description: Get available tag types
+      tags:
+        - 'Library: Tag'
+      security:
+          - editorAuth: []
+      responses:
+          '200':
+            description: Found media
+            content: 
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/TagTypes'
+          '401':
+            $ref: '#/components/responses/Unauthorized'
+  /admin/library/tag:
+    get:
+      description: Get all registered tags.
+      tags:
+        - 'Library: Tag'
+      security:
+          - editorAuth: []
+      responses:
+          '200':
+            description: Found media
+            content: 
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/TagList'
+          '401':
+            $ref: '#/components/responses/Unauthorized'
+    post:
+      description: Register new tag.
+      tags:
+        - 'Library: Tag'
+      security:
+          - editorAuth: []
+      requestBody: 
+        description: Tag
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Tag'
+      responses:
+        '200': 
+          description: Successfully created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 1
+        '400':
+          description: Tag exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      - tag exists
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /admin/library/tag/{id}:
+    parameters:
+      -
+        $ref: '#/components/parameters/ID'
+    delete:
+      description: Delete tag by its id.
+      tags:
+        - 'Library: Tag'
+      security:
+        - editorAuth: []
+      responses:
+        '200':
+          description: Deleted tag
+        '400':
+          description: Tag not found
+          content: 
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      - 'bad id'
+                      - 'tag not found'
         '401':
           $ref: '#/components/responses/Unauthorized'
   /admin/library/source/{id}:
@@ -539,6 +634,31 @@ components:
       type: array
       items:
         $ref: '#/components/schemas/Editor'
+    TagType:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: genre
+    TagTypes:
+      type: array
+      items:
+        $ref: '#/components/schemas/TagType'
+    Tag:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        type:
+          $ref: '#/components/schemas/TagType'
+    TagList:
+      type: array
+      items:
+        $ref: '#/components/schemas/Tag'
     MediaRegister:
       type: object
       properties:
@@ -551,6 +671,8 @@ components:
         author:
           type: string
           example: AC/DC
+        tags:
+          $ref: '#/components/schemas/TagList'
     Media:
       type: object
       properties:

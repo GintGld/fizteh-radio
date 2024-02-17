@@ -70,6 +70,8 @@ type Source interface {
 	DeleteSource(ctx context.Context, media models.Media) error
 }
 
+// TODO: add PUT methods, enable adding new tags to existing media.
+
 // TODO: add support for AAC, WAV
 
 // allMedia returns all media
