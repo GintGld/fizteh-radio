@@ -215,6 +215,20 @@ paths:
       responses:
         '200':
           description: Uploaded and registered new media
+    put:
+      description: Update media information (not its source)
+      tags:
+        - 'Library: Media'
+      security:
+        - editorAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+                $ref: '#/components/schemas/MediaRegister'
+      responses:
+        '200':
+          description: Uploaded and registered new media
   /admin/library/media/{id}:
     parameters:
       -
@@ -364,6 +378,30 @@ paths:
                       - 'tag not found'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /admin/tag/multi/{id}:
+    parameters:
+      -
+        $ref: '#/components/parameters/ID'
+    post:
+      description: Add tag to media list.
+      tags:
+        - 'Library: Tag'
+      security:
+        - editorAuth: []
+      requestBody: 
+        description: Tag
+        content:
+          application/json:
+            schema:
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: integer
+                    example: 1
+      responses:
+        '200':
+          description: Successfully added.
   /admin/library/source/{id}:
     parameters:
       -
