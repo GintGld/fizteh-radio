@@ -15,7 +15,6 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-sqlite3 v1.14.19
 	github.com/stretchr/testify v1.8.4
-	github.com/valyala/fasthttp v1.52.0
 	github.com/zencoder/go-dash/v3 v3.0.3
 	golang.org/x/crypto v0.19.0
 )
@@ -47,6 +46,7 @@ require (
 	github.com/sanity-io/litter v1.5.5 // indirect
 	github.com/sergi/go-diff v1.3.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
+	github.com/valyala/fasthttp v1.52.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
