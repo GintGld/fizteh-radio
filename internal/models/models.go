@@ -6,6 +6,9 @@ import "time"
 
 // TODO: make own json (un)marshalers
 
+// TODO: add more structs (MediaBasicInfo for storage functions)
+// to remove pointers. Add methos to convert/create one from another.
+
 type EditorIn struct {
 	Login string `json:"login"`
 	Pass  string `json:"pass"`

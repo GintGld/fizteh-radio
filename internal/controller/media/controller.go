@@ -35,6 +35,7 @@ func New(
 
 	app.Get("/media", mediaCtr.allMedia)
 	app.Post("/media", mediaCtr.newMedia)
+	app.Put("/media", mediaCtr.updateMedia)
 	app.Get("/media/:id", mediaCtr.media)
 	app.Get("/source/:id", mediaCtr.source)
 	app.Delete("/media/:id", mediaCtr.deleteMedia)
@@ -55,7 +56,8 @@ type mediaController struct {
 
 type Media interface {
 	AllMedia(ctx context.Context) ([]models.Media, error)
-	NewMedia(ctx context.Context, newMedia models.Media) (int64, error)
+	NewMedia(ctx context.Context, media models.Media) (int64, error)
+	UpdateMedia(ctx context.Context, media models.Media) error
 	Media(ctx context.Context, id int64) (models.Media, error)
 	DeleteMedia(ctx context.Context, id int64) error
 	TagTypes(ctx context.Context) (models.TagTypes, error)
@@ -73,6 +75,8 @@ type Source interface {
 // TODO: add PUT methods, enable adding new tags to existing media.
 
 // TODO: add support for AAC, WAV
+
+// TODO: add PUT method for source
 
 // allMedia returns all media
 func (mediaCtr *mediaController) allMedia(c *fiber.Ctx) error {
@@ -185,6 +189,28 @@ func (mediaCtr *mediaController) newMedia(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"id": id,
 	})
+}
+
+// updateMedia updates media information
+func (mediaCtr *mediaController) updateMedia(c *fiber.Ctx) error {
+	var request struct {
+		Media models.Media `json:"media"`
+	}
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	if err := mediaCtr.srvMedia.UpdateMedia(context.TODO(), request.Media); err != nil {
+		if errors.Is(err, service.ErrMediaNotFound) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "media not found",
+			})
+		}
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	return c.SendStatus(fiber.StatusOK)
 }
 
 // media return json with media by id

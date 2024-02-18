@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
 	"github.com/GintGld/fizteh-radio/internal/models"
@@ -15,30 +16,48 @@ import (
 type Media struct {
 	log          *slog.Logger
 	mediaStorage MediaStorage
+	tagTypes     models.TagTypes
 }
 
 type MediaStorage interface {
 	AllMedia(ctx context.Context) ([]models.Media, error)
 	SaveMedia(ctx context.Context, newMedia models.Media) (int64, error)
+	UpdateMediaBasicInfo(ctx context.Context, media models.Media) error
 	Media(ctx context.Context, id int64) (models.Media, error)
 	DeleteMedia(ctx context.Context, id int64) error
 	TagTypes(ctx context.Context) (models.TagTypes, error)
 	AllTags(ctx context.Context) (models.TagList, error)
 	SaveTag(ctx context.Context, tag models.Tag) (int64, error)
 	DeleteTag(ctx context.Context, id int64) error
+	TagMedia(ctx context.Context, mediaId int64, tags ...models.Tag) error
+	UntagMedia(ctx context.Context, mediaId int64, tags ...models.Tag) error
 }
 
 func New(
 	log *slog.Logger,
 	mediaStorage MediaStorage,
 ) *Media {
+	const op = "Media.New"
+
+	localLog := log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	tagTypes, err := mediaStorage.TagTypes(context.Background())
+	if err != nil {
+		localLog.Error("failed to get tag types", sl.Err(err))
+		return nil
+	}
+
 	return &Media{
 		log:          log,
 		mediaStorage: mediaStorage,
+		tagTypes:     tagTypes,
 	}
 }
 
-// TODO: in logging save editor name (put on context)
+// TODO: in logging save editor name (put in context)
 
 func (l *Media) AllMedia(ctx context.Context) ([]models.Media, error) {
 	const op = "Media.AllMedia"
@@ -91,6 +110,61 @@ func (l *Media) NewMedia(ctx context.Context, newMedia models.Media) (int64, err
 	)
 
 	return id, nil
+}
+
+// UpdateMedia saves new media information.
+// If there's no media with given id, returns error.
+func (l *Media) UpdateMedia(ctx context.Context, media models.Media) error {
+	const op = "Media.UpdateMedia"
+
+	log := l.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	log.Info("updating media", slog.Int64("id", *media.ID))
+
+	oldMedia, err := l.mediaStorage.Media(ctx, *media.ID)
+	if err != nil {
+		if errors.Is(err, storage.ErrMediaNotFound) {
+			log.Warn("media not found", slog.Int64("id", *media.ID))
+			return service.ErrMediaNotFound
+		}
+		log.Error(
+			"failed to get old media",
+			slog.Int64("id", *media.ID),
+			sl.Err(err),
+		)
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if err := l.mediaStorage.UpdateMediaBasicInfo(ctx, media); err != nil {
+		log.Error(
+			"failed to update basic media info",
+			slog.Int64("id", *media.ID),
+			sl.Err(err),
+		)
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	tagsToAdd := make(models.TagList, 0)
+	tagsToDel := make(models.TagList, 0)
+
+	for _, newTag := range media.Tags {
+		if !slices.Contains(oldMedia.Tags, newTag) {
+			tagsToAdd = append(tagsToAdd, newTag)
+		}
+	}
+	for _, oldTag := range oldMedia.Tags {
+		if !slices.Contains(media.Tags, oldTag) {
+			tagsToAdd = append(tagsToDel, oldTag)
+		}
+	}
+
+	l.mediaStorage.TagMedia(ctx, *media.ID, tagsToAdd...)
+	l.mediaStorage.UntagMedia(ctx, *media.ID, tagsToDel...)
+
+	return nil
 }
 
 // Media returns media model by given id.
@@ -195,6 +269,20 @@ func (l *Media) SaveTag(ctx context.Context, tag models.Tag) (int64, error) {
 	)
 
 	log.Info("saving tag", slog.String("name", tag.Name))
+
+	// Validating tag type.
+	validType := false
+	for _, tagType := range l.tagTypes {
+		if tagType.ID == tag.Type.ID {
+			validType = true
+		}
+	}
+	if !validType {
+		log.Warn("tag type not found", slog.Int64("id", tag.Type.ID))
+		return 0, service.ErrTagTypeNotFound
+	}
+
+	log.Info("tag type valid", slog.Int64("id", tag.Type.ID))
 
 	id, err := l.mediaStorage.SaveTag(ctx, tag)
 	if err != nil {

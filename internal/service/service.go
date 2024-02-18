@@ -15,5 +15,7 @@ var (
 	ErrTagExists   = errors.New("tag exists")
 	ErrTagNotFound = errors.New("tag not found")
 
+	ErrTagTypeNotFound = errors.New("tag type not found")
+
 	ErrSegmentNotFound = errors.New("segment not found")
 )

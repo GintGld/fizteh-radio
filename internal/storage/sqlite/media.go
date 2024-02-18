@@ -199,6 +199,22 @@ func (s *Storage) saveMediaSubTags(tx statementBuilder, ctx context.Context, id 
 	return nil
 }
 
+// UpdateMedia updates basic media information (without tags).
+func (s *Storage) UpdateMediaBasicInfo(ctx context.Context, media models.Media) error {
+	const op = "storage.sqlite.UpdateMedia"
+
+	stmt, err := s.db.PrepareContext(ctx, "REPLACE INTO library(id, source_id, name, author, duration) VALUES(?, ?, ?, ?, ?)")
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if _, err := stmt.ExecContext(ctx, *media.ID, *media.SourceID, *media.Name, *media.Author, media.Duration.Microseconds()); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
 // Media return media file by id.
 func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 	const op = "storage.sqlite.Media"
@@ -212,6 +228,9 @@ func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 
 	media, err := s.mediaSubBasicInfo(tx, ctx, id)
 	if err != nil {
+		if errors.Is(err, storage.ErrMediaNotFound) {
+			return models.Media{}, storage.ErrMediaNotFound
+		}
 		return models.Media{}, fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -404,11 +423,9 @@ rows_loop:
 			if tagType.ID == tag.Type.ID {
 				tag.Type.Name = tagType.Name
 				s.tagCache.tagList = append(s.tagCache.tagList, tag)
+				continue rows_loop
 			}
 		}
-
-		s.tagCache.tagList = append(s.tagCache.tagList, tag)
-		continue rows_loop
 	}
 
 	return nil
@@ -474,6 +491,52 @@ func (s *Storage) DeleteTag(ctx context.Context, id int64) error {
 	}
 	if affectedRows == 0 {
 		return storage.ErrTagNotFound
+	}
+
+	return nil
+}
+
+// TagMedia adds new tags to the media.
+func (s *Storage) TagMedia(ctx context.Context, mediaId int64, tags ...models.Tag) error {
+	const op = "storage.sqlite.TagMedia"
+
+	var b strings.Builder
+	b.WriteString("INSERT INTO libraryTag(media_id, tag_id) VALUES")
+	for _, tag := range tags {
+		fmt.Fprintf(&b, "(%d,%d),", mediaId, tag.ID)
+	}
+	query := strings.TrimSuffix(b.String(), ",") + ";"
+
+	stmt, err := s.db.PrepareContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if _, err := stmt.ExecContext(ctx); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
+// UntagMedia deletes tags from media.
+func (s *Storage) UntagMedia(ctx context.Context, mediaId int64, tags ...models.Tag) error {
+	const op = "storage.sqlite.UntagMedia"
+
+	var b strings.Builder
+	b.WriteString("DELETE FROM libraryTag WHERE (media_id, tag_id) IN (")
+	for _, tag := range tags {
+		fmt.Fprintf(&b, "(%d,%d),", mediaId, tag.ID)
+	}
+	query := strings.TrimSuffix(b.String(), ",") + ");"
+
+	stmt, err := s.db.PrepareContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if _, err := stmt.ExecContext(ctx); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	return nil
