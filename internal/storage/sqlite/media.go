@@ -122,32 +122,7 @@ func (s *Storage) allMediaSubBasicInfo(tx statementBuilder, ctx context.Context,
 func (s *Storage) SaveMedia(ctx context.Context, media models.Media) (int64, error) {
 	const op = "storage.sqlite.SaveMedia"
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", op, err)
-	}
-	defer tx.Rollback()
-
-	id, err := s.saveMediaSubBasicInfo(tx, ctx, media)
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", op, err)
-	}
-
-	if err := s.saveMediaSubTags(tx, ctx, id, media); err != nil {
-		return 0, fmt.Errorf("%s: %w", op, err)
-	}
-
-	tx.Commit()
-
-	return id, nil
-}
-
-// SaveMediaSubBasicInfo save media basic info
-// and returns its id.
-func (s *Storage) saveMediaSubBasicInfo(tx statementBuilder, ctx context.Context, media models.Media) (int64, error) {
-	const op = "storage.sqlite.SaveMediaSubBasicInfo"
-
-	stmt, err := tx.PrepareContext(ctx, "INSERT INTO library(name, author, duration, source_id) VALUES(?, ?, ?, ?)")
+	stmt, err := s.db.PrepareContext(ctx, "INSERT INTO library(name, author, duration, source_id) VALUES(?, ?, ?, ?)")
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
@@ -171,44 +146,21 @@ func (s *Storage) saveMediaSubBasicInfo(tx statementBuilder, ctx context.Context
 	return id, nil
 }
 
-// SaveMediaSubTags saves tags realted to added media.
-func (s *Storage) saveMediaSubTags(tx statementBuilder, ctx context.Context, id int64, media models.Media) error {
-	const op = "storage.sqlite.SaveMediaSubTags"
-
-	if len(media.Tags) == 0 {
-		return nil
-	}
-
-	var b strings.Builder
-	b.WriteString("INSERT INTO libraryTag(media_id, tag_id) VALUES")
-	for _, tag := range media.Tags {
-		_, err := fmt.Fprintf(&b, "(%d, %d),", id, tag.ID)
-		if err != nil {
-			return fmt.Errorf("%s: %w", op, err)
-		}
-	}
-	tagStmt := strings.TrimSuffix(b.String(), ",") + ";"
-	stmt, err := tx.PrepareContext(ctx, tagStmt)
-	if err != nil {
-		return fmt.Errorf("%s: %w", op, err)
-	}
-	if _, err := stmt.ExecContext(ctx); err != nil {
-		return fmt.Errorf("%s: %w", op, err)
-	}
-
-	return nil
-}
-
 // UpdateMedia updates basic media information (without tags).
 func (s *Storage) UpdateMediaBasicInfo(ctx context.Context, media models.Media) error {
 	const op = "storage.sqlite.UpdateMedia"
 
-	stmt, err := s.db.PrepareContext(ctx, "REPLACE INTO library(id, source_id, name, author, duration) VALUES(?, ?, ?, ?, ?)")
+	query := fmt.Sprintf(
+		`UPDATE library SET name = "%s", author = "%s" WHERE id = "%d"`,
+		*media.Name, *media.Author, *media.ID,
+	)
+
+	stmt, err := s.db.PrepareContext(ctx, query)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	if _, err := stmt.ExecContext(ctx, *media.ID, *media.SourceID, *media.Name, *media.Author, media.Duration.Microseconds()); err != nil {
+	if _, err := stmt.ExecContext(ctx); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -288,7 +240,7 @@ func (s *Storage) mediaSubTags(tx statementBuilder, ctx context.Context, id int6
 	const op = "storage.sqlite.mediaSubTags"
 
 	stmt, err := tx.PrepareContext(ctx, `
-		SELECT t.name, tt.id, tt.name
+		SELECT t.id, t.name, tt.id, tt.name
 		FROM libraryTag AS lt
 		JOIN tag as t ON t.id = lt.tag_id
 		JOIN library AS l ON l.id = lt.media_id
@@ -309,7 +261,7 @@ func (s *Storage) mediaSubTags(tx statementBuilder, ctx context.Context, id int6
 	tags := make(models.TagList, 0)
 
 	for rows.Next() {
-		if err := rows.Scan(&tag.Name, &tag.Type.ID, &tag.Type.Name); err != nil {
+		if err := rows.Scan(&tag.ID, &tag.Name, &tag.Type.ID, &tag.Type.Name); err != nil {
 			return models.TagList{}, fmt.Errorf("%s: %w", op, err)
 		}
 		tags = append(tags, tag)
@@ -393,7 +345,7 @@ func (s *Storage) updateTagTypes(ctx context.Context) error {
 func (s *Storage) updateTagList(ctx context.Context) error {
 	const op = "storage.sqlite.updateTagList"
 
-	stmt, err := s.db.PrepareContext(ctx, "SELECT name, type_id FROM tag")
+	stmt, err := s.db.PrepareContext(ctx, "SELECT id, name, type_id FROM tag")
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -415,7 +367,7 @@ func (s *Storage) updateTagList(ctx context.Context) error {
 
 rows_loop:
 	for rows.Next() {
-		if err := rows.Scan(&tag.Name, &tag.Type.ID); err != nil {
+		if err := rows.Scan(&tag.ID, &tag.Name, &tag.Type.ID); err != nil {
 			return fmt.Errorf("%s: %w", op, err)
 		}
 
@@ -500,6 +452,10 @@ func (s *Storage) DeleteTag(ctx context.Context, id int64) error {
 func (s *Storage) TagMedia(ctx context.Context, mediaId int64, tags ...models.Tag) error {
 	const op = "storage.sqlite.TagMedia"
 
+	if len(tags) == 0 {
+		return nil
+	}
+
 	var b strings.Builder
 	b.WriteString("INSERT INTO libraryTag(media_id, tag_id) VALUES")
 	for _, tag := range tags {
@@ -522,6 +478,10 @@ func (s *Storage) TagMedia(ctx context.Context, mediaId int64, tags ...models.Ta
 // UntagMedia deletes tags from media.
 func (s *Storage) UntagMedia(ctx context.Context, mediaId int64, tags ...models.Tag) error {
 	const op = "storage.sqlite.UntagMedia"
+
+	if len(tags) == 0 {
+		return nil
+	}
 
 	var b strings.Builder
 	b.WriteString("DELETE FROM libraryTag WHERE (media_id, tag_id) IN (")

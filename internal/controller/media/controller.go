@@ -72,8 +72,6 @@ type Source interface {
 	DeleteSource(ctx context.Context, media models.Media) error
 }
 
-// TODO: add PUT methods, enable adding new tags to existing media.
-
 // TODO: add support for AAC, WAV
 
 // TODO: add PUT method for source
@@ -183,6 +181,11 @@ func (mediaCtr *mediaController) newMedia(c *fiber.Ctx) error {
 
 	id, err := mediaCtr.srvMedia.NewMedia(context.TODO(), media)
 	if err != nil {
+		if errors.Is(err, service.ErrTagNotFound) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "tag not found",
+			})
+		}
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
@@ -199,6 +202,22 @@ func (mediaCtr *mediaController) updateMedia(c *fiber.Ctx) error {
 
 	if err := c.BodyParser(&request); err != nil {
 		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	if request.Media.ID == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "unexpected id",
+		})
+	}
+	if request.Media.Name == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "name required",
+		})
+	}
+	if request.Media.Author == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "author required",
+		})
 	}
 
 	if err := mediaCtr.srvMedia.UpdateMedia(context.TODO(), request.Media); err != nil {

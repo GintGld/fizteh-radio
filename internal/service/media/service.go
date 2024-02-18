@@ -85,7 +85,7 @@ func (l *Media) AllMedia(ctx context.Context) ([]models.Media, error) {
 }
 
 // NewMedia registers new editor in the system and returns media ID.
-func (l *Media) NewMedia(ctx context.Context, newMedia models.Media) (int64, error) {
+func (l *Media) NewMedia(ctx context.Context, media models.Media) (int64, error) {
 	const op = "Media.NewMedia"
 
 	log := l.log.With(
@@ -95,18 +95,32 @@ func (l *Media) NewMedia(ctx context.Context, newMedia models.Media) (int64, err
 
 	log.Info("registering new media")
 
-	id, err := l.mediaStorage.SaveMedia(ctx, newMedia)
+	id, err := l.mediaStorage.SaveMedia(ctx, media)
 	if err != nil {
 		log.Error("failed to save media", sl.Err(err))
-		return models.ErrEditorID, fmt.Errorf("%s: %w", op, err)
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+
+	tags, _ := l.mediaStorage.AllTags(ctx)
+
+	for _, tag := range media.Tags {
+		if !slices.Contains(tags, tag) {
+			log.Warn("tag not found", slog.Int64("id", tag.ID))
+			return 0, service.ErrTagNotFound
+		}
+	}
+
+	if err := l.mediaStorage.TagMedia(ctx, id, media.Tags...); err != nil {
+		log.Error("failed to tag media", sl.Err(err))
+		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
 	log.Info(
 		"registered media",
 		slog.Int64("id", id),
-		slog.String("name", *newMedia.Name),
-		slog.String("author", *newMedia.Author),
-		slog.Int64("sourceID", *newMedia.SourceID),
+		slog.String("name", *media.Name),
+		slog.String("author", *media.Author),
+		slog.Int64("sourceID", *media.SourceID),
 	)
 
 	return id, nil
@@ -138,6 +152,8 @@ func (l *Media) UpdateMedia(ctx context.Context, media models.Media) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
+	log.Info("found old media", slog.Int64("id", *media.ID))
+
 	if err := l.mediaStorage.UpdateMediaBasicInfo(ctx, media); err != nil {
 		log.Error(
 			"failed to update basic media info",
@@ -147,17 +163,28 @@ func (l *Media) UpdateMedia(ctx context.Context, media models.Media) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
+	log.Info("updated basic info")
+
+	log.Debug("new info",
+		slog.String("name", *media.Name),
+		slog.String("author", *media.Author))
+
+	tags, _ := l.mediaStorage.AllTags(ctx)
+
 	tagsToAdd := make(models.TagList, 0)
 	tagsToDel := make(models.TagList, 0)
 
 	for _, newTag := range media.Tags {
+		if !slices.Contains(tags, newTag) {
+			log.Warn("tag not found", slog.Int64("id", newTag.ID))
+		}
 		if !slices.Contains(oldMedia.Tags, newTag) {
 			tagsToAdd = append(tagsToAdd, newTag)
 		}
 	}
 	for _, oldTag := range oldMedia.Tags {
 		if !slices.Contains(media.Tags, oldTag) {
-			tagsToAdd = append(tagsToDel, oldTag)
+			tagsToDel = append(tagsToDel, oldTag)
 		}
 	}
 
