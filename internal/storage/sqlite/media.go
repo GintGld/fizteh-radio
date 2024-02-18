@@ -222,7 +222,6 @@ func (s *Storage) mediaSubBasicInfo(tx statementBuilder, ctx context.Context, id
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.Media{}, fmt.Errorf("%s: %w", op, storage.ErrMediaNotFound)
 		}
-
 		return models.Media{}, fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -418,6 +417,30 @@ func (s *Storage) SaveTag(ctx context.Context, tag models.Tag) (int64, error) {
 	return id, nil
 }
 
+func (s *Storage) Tag(ctx context.Context, id int64) (models.Tag, error) {
+	const op = "storage.sqlite.Tag"
+
+	stmt, err := s.db.PrepareContext(ctx, "SELECT name, type_id FROM tag WHERE id = ?")
+	if err != nil {
+		return models.Tag{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	row := stmt.QueryRowContext(ctx, id)
+
+	tag := models.Tag{
+		ID: id,
+	}
+
+	if err := row.Scan(&tag.Name, &tag.Type.ID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.Tag{}, fmt.Errorf("%s: %w", op, storage.ErrTagNotFound)
+		}
+		return models.Tag{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return tag, nil
+}
+
 // DeleteTag deletes tag by its name
 func (s *Storage) DeleteTag(ctx context.Context, id int64) error {
 	const op = "storage.sqlite.DeleteTag"
@@ -460,6 +483,33 @@ func (s *Storage) TagMedia(ctx context.Context, mediaId int64, tags ...models.Ta
 	b.WriteString("INSERT INTO libraryTag(media_id, tag_id) VALUES")
 	for _, tag := range tags {
 		fmt.Fprintf(&b, "(%d,%d),", mediaId, tag.ID)
+	}
+	query := strings.TrimSuffix(b.String(), ",") + ";"
+
+	stmt, err := s.db.PrepareContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if _, err := stmt.ExecContext(ctx); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
+// MultiTagMedia add one tag to list of media.
+func (s *Storage) MultiTagMedia(ctx context.Context, tag models.Tag, mediaIds ...int64) error {
+	const op = "storage.sqlite.MultiTagMedia"
+
+	if len(mediaIds) == 0 {
+		return nil
+	}
+
+	var b strings.Builder
+	b.WriteString("INSERT INTO libraryTag(media_id, tag_id) VALUES")
+	for _, id := range mediaIds {
+		fmt.Fprintf(&b, "(%d,%d),", id, tag.ID)
 	}
 	query := strings.TrimSuffix(b.String(), ",") + ";"
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/brianvoe/gofakeit/v6"
 	"github.com/gavv/httpexpect/v2"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/GintGld/fizteh-radio/internal/lib/ffmpeg"
@@ -550,6 +551,73 @@ func TestUpdateMediaDeleteTags(t *testing.T) {
 	mediaRes.Duration = nil
 
 	require.Equal(t, newMedia, mediaRes)
+}
+
+func TestMultiTagMedia(t *testing.T) {
+	token, err := suite.RootLogin()
+	require.NoError(t, err)
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   cfg.Address,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	// get available tags
+	tags := make(models.TagList, 0)
+	e.GET("/library/tag").
+		WithHeader("Authorization", "Bearer "+token).
+		Expect().
+		Status(200).
+		JSON().
+		Path("$.tags").
+		Decode(&tags)
+
+	const mediaCount = 2
+
+	ids := make([]int64, mediaCount)
+	for i := 0; i < mediaCount; i++ {
+		media := randomMedia()
+		media.Tags = make(models.TagList, 0)
+		mediaStr, err := json.Marshal(media)
+		require.NoError(t, err)
+
+		res := e.POST("/library/media").
+			WithHeader("Authorization", "Bearer "+token).
+			WithMultipart().
+			WithFile("source", sourceFile).
+			WithFormField("media", string(mediaStr)).
+			Expect().
+			Status(200).
+			JSON().
+			Path("$.id").
+			Number().
+			Raw()
+		ids[i] = int64(res)
+	}
+
+	tagId := gofakeit.IntRange(0, len(tags)-1)
+
+	e.POST("/library/tag/multi/{id}", tags[tagId].ID).
+		WithHeader("Authorization", "Bearer "+token).
+		WithJSON(struct {
+			Ids []int64 `json:"ids"`
+		}{
+			Ids: ids,
+		}).Expect().
+		Status(200)
+
+	var tag models.Tag
+	for i := 0; i < mediaCount; i++ {
+		e.GET("/library/media/{id}", ids[i]).
+			WithHeader("Authorization", "Bearer "+token).
+			Expect().
+			Status(200).
+			JSON().
+			Path("$.media.tags[0]").
+			Decode(&tag)
+		assert.Equal(t, tags[tagId].ID, tag.ID)
+	}
 }
 
 func TestDeleteMedia(t *testing.T) {

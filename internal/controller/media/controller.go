@@ -44,6 +44,7 @@ func New(
 	app.Get("/tag", mediaCtr.allTags)
 	app.Post("/tag", mediaCtr.newTag)
 	app.Delete("/tag/:id", mediaCtr.deleteTag)
+	app.Post("/tag/multi/:id", mediaCtr.multiTag)
 
 	return app
 }
@@ -58,11 +59,13 @@ type Media interface {
 	AllMedia(ctx context.Context) ([]models.Media, error)
 	NewMedia(ctx context.Context, media models.Media) (int64, error)
 	UpdateMedia(ctx context.Context, media models.Media) error
+	MultiTagMedia(ctx context.Context, tag models.Tag, mediaIds ...int64) error
 	Media(ctx context.Context, id int64) (models.Media, error)
 	DeleteMedia(ctx context.Context, id int64) error
 	TagTypes(ctx context.Context) (models.TagTypes, error)
 	AllTags(ctx context.Context) (models.TagList, error)
 	SaveTag(ctx context.Context, tag models.Tag) (int64, error)
+	Tag(ctx context.Context, id int64) (models.Tag, error)
 	DeleteTag(ctx context.Context, id int64) error
 }
 
@@ -227,6 +230,51 @@ func (mediaCtr *mediaController) updateMedia(c *fiber.Ctx) error {
 			})
 		}
 		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	return c.SendStatus(fiber.StatusOK)
+}
+
+// multiTag add tag to media list
+func (mediaCtr *mediaController) multiTag(c *fiber.Ctx) error {
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "bad id",
+		})
+	}
+
+	tag, err := mediaCtr.srvMedia.Tag(context.TODO(), id)
+	if err != nil {
+		if errors.Is(err, service.ErrTagNotFound) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "tag not found",
+			})
+		}
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	var request struct {
+		Ids []int64 `json:"ids"`
+	}
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	if len(request.Ids) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "no ids",
+		})
+	}
+
+	if err := mediaCtr.srvMedia.MultiTagMedia(context.TODO(), tag, request.Ids...); err != nil {
+		if errors.Is(err, service.ErrTagNotFound) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "tag not found",
+			})
+		}
+		return c.SendStatus(fiber.StatusBadRequest)
 	}
 
 	return c.SendStatus(fiber.StatusOK)
