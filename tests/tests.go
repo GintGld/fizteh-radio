@@ -2,6 +2,7 @@ package tests
 
 import (
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 
@@ -15,3 +16,10 @@ var (
 	rootPass = os.Getenv("ROOT_PASS")
 	secret   = os.Getenv("SECRET")
 )
+
+var (
+	sourceFile     = "./source/sample-9s.mp3"
+	sourceDuration = time.Second * 9 // approximate duration
+)
+
+// TODO: try to use fiber.App.test method for testing

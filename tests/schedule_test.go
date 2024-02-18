@@ -16,11 +16,6 @@ import (
 	"github.com/GintGld/fizteh-radio/tests/suite"
 )
 
-const (
-	sourceFile     = "./source/sample-9s.mp3"
-	sourceDuration = time.Second * 9 // approximate duration
-)
-
 func TestCreateNewSegment(t *testing.T) {
 	token, err := suite.RootLogin()
 	require.NoError(t, err)

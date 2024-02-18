@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS schedule
 (
     id          INTEGER PRIMARY KEY,
     media_id    INTEGER,
-    start_mus    INTEGER,
+    start_mus   INTEGER,
     begin_cut   INTEGER,
     stop_cut    INTEGER
 );

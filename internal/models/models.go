@@ -4,6 +4,11 @@ import "time"
 
 // TODO: split into different files when become too big
 
+// TODO: make own json (un)marshalers
+
+// TODO: add more structs (MediaBasicInfo for storage functions)
+// to remove pointers. Add methos to convert/create one from another.
+
 type EditorIn struct {
 	Login string `json:"login"`
 	Pass  string `json:"pass"`
@@ -20,7 +25,6 @@ type Editor struct {
 	PassHash []byte `json:"pass"`
 }
 
-// TODO: change ErrEditorId to just 0
 const (
 	ErrEditorID int64 = 0
 
@@ -34,6 +38,21 @@ type Media struct {
 	Author   *string        `json:"author"`
 	Duration *time.Duration `json:"duration"`
 	SourceID *int64         `json:"-"`
+	Tags     TagList        `json:"tags"`
+}
+
+type TagTypes []TagType
+type TagList []Tag
+
+type Tag struct {
+	ID   int64   `json:"id"`
+	Name string  `json:"name"`
+	Type TagType `json:"type"`
+}
+
+type TagType struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }
 
 type Segment struct {
