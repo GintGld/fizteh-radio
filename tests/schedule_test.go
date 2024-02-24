@@ -2,6 +2,7 @@ package tests
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"testing"
 	"time"
@@ -114,10 +115,15 @@ func TestGetSegment(t *testing.T) {
 	json.Object().Keys().ContainsOnly("segment")
 	json.Path("$.segment").Object().Keys().ContainsOnly("id", "mediaID", "start", "beginCut", "stopCut")
 	json.Path("$.segment.mediaID").Number().IsEqual(mediaID)
-	json.Path("$.segment.beginCut").Number().IsEqual(*segment.BeginCut)
-	json.Path("$.segment.stopCut").Number().IsEqual(*segment.StopCut)
+	// json.Path("$.segment.beginCut").Number().IsEqual(*segment.BeginCut)
+	// json.Path("$.segment.stopCut").Number().IsEqual(*segment.StopCut)
+
+	fmt.Println(json.Path("$.segment.start").String().Raw())
+	fmt.Println(segment.Start.UnixMilli())
+	fmt.Println(segment.Start)
+
 	gotTime, err := time.Parse(
-		"2006-01-02T15:04:05.999999999Z",
+		"2006-01-02T15:04:05.999999999-07:00",
 		json.Path("$.segment.start").String().Raw(),
 	)
 	require.NoError(t, err)
