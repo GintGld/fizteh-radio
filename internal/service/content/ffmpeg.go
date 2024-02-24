@@ -20,7 +20,7 @@ import (
 const (
 	maxBitrate       = 96000
 	maxSamplingRate  = 44100
-	mpdFile          = "tmp.mpd" // ffmpeg needs to have file to dump manifest for splitted composition (TODO: check it)
+	mpdFile          = "tmp.mpd" // ffmpeg needs to have file to dump manifest for splitted composition
 	waitBeforeDelete = 15 * time.Second
 )
 
@@ -56,7 +56,7 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 
 	// check if content is already exists
 	if fileInfo, err := os.Stat(path); err == nil {
-		if fileInfo.IsDir() == false {
+		if !fileInfo.IsDir() {
 			log.Error(
 				"is not directory",
 				slog.String("path", path),
