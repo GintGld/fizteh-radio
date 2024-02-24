@@ -25,8 +25,6 @@ import (
 func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Time) ([]models.Segment, error) {
 	const op = "storage.sqlite.ScheduleCut"
 
-	// TODO: use operator BETWEEN in sql query
-
 	// Select segments intersecting diaposon [start, stop]
 	stmt, err := s.db.Prepare(`
 		SELECT id, media_id, start_mus, begin_cut, stop_cut 
