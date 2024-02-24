@@ -14,25 +14,27 @@ import (
 	"github.com/GintGld/fizteh-radio/internal/storage"
 )
 
-// TODO: rename all variables named *Ms to smth else
-// because they are nanoseconds
+/*
+// All time values are stored in microseconds.
+// It is motivated by dash precision.
+*/
+
+// TODO: SaveSegment should take segmetns ...models.Segment
 
 // ScheduelCut returns all segments intersecting given interval.
 func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Time) ([]models.Segment, error) {
 	const op = "storage.sqlite.ScheduleCut"
+
+	// TODO: use operator BETWEEN in sql query
 
 	// Select segments intersecting diaposon [start, stop]
 	stmt, err := s.db.Prepare(`
 		SELECT id, media_id, start_mus, begin_cut, stop_cut 
 		FROM schedule
 		WHERE (
-			(
-				$1 <= start_mus AND
-				$2 >= start_mus
-			) OR (
-				$1 <= start_mus + (stop_cut - begin_cut) AND
-				$2 >= start_mus + (stop_cut - begin_cut)
-			)
+			start_mus BETWEEN $1 AND $2
+			OR
+			start_mus + (stop_cut - begin_cut) BETWEEN $1 AND $2
 		)
 	`)
 	if err != nil {
