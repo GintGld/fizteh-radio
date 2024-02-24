@@ -60,6 +60,9 @@ func New(
 }
 
 // TODO: in logging save editor name (put in context)
+// TODO: searching filters
+// TODO: autodj
+// TODO: segment protected flag (don't delete during schedule clear, for podcasts)
 
 func (l *Media) AllMedia(ctx context.Context) ([]models.Media, error) {
 	const op = "Media.AllMedia"
