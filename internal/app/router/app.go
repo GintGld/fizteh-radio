@@ -142,6 +142,23 @@ func New(
 	// In debug mode there's no proxy that serves static files.
 	if log.Enabled(context.Background(), slog.LevelDebug) {
 		app.Static("/", "./public")
+
+		app.Get("/mpd", func(c *fiber.Ctx) error {
+			return c.SendFile(manPath)
+		})
+		app.Get("/:id/:file", func(c *fiber.Ctx) error {
+			id := c.Params("id")
+			if id == "" {
+				return c.SendStatus(fiber.StatusNotFound)
+			}
+	
+			file := c.Params("file")
+			if file == "" {
+				return c.SendStatus(fiber.StatusNotFound)
+			}
+	
+			return c.SendFile(contentDir + "/" + id + "/" + file)
+		})
 	}
 
 	return &App{
