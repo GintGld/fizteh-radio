@@ -2,7 +2,6 @@ package tests
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"testing"
 	"time"
@@ -113,14 +112,80 @@ func TestGetSegment(t *testing.T) {
 
 	// Check response
 	json.Object().Keys().ContainsOnly("segment")
-	json.Path("$.segment").Object().Keys().ContainsOnly("id", "mediaID", "start", "beginCut", "stopCut")
+	json.Path("$.segment").Object().Keys().ContainsOnly("id", "mediaID", "start", "beginCut", "stopCut", "protected")
 	json.Path("$.segment.mediaID").Number().IsEqual(mediaID)
 	// json.Path("$.segment.beginCut").Number().IsEqual(*segment.BeginCut)
 	// json.Path("$.segment.stopCut").Number().IsEqual(*segment.StopCut)
+	json.Path("$.segment.protected").Boolean().IsEqual(false)
 
-	fmt.Println(json.Path("$.segment.start").String().Raw())
-	fmt.Println(segment.Start.UnixMilli())
-	fmt.Println(segment.Start)
+	gotTime, err := time.Parse(
+		"2006-01-02T15:04:05.999999999-07:00",
+		json.Path("$.segment.start").String().Raw(),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, segment.Start.UnixMilli(), gotTime.UnixMilli())
+}
+
+func TestGetProtectedSegment(t *testing.T) {
+	token, err := suite.RootLogin()
+	require.NoError(t, err)
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   cfg.Address,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	// Create new media
+	media := randomMedia()
+	mediaStr, err := json.Marshal(media)
+	require.NoError(t, err)
+
+	// Post media
+	mediaID := e.POST("/library/media").
+		WithHeader("Authorization", "Bearer "+token).
+		WithMultipart().
+		WithFile("source", sourceFile).
+		WithFormField("media", string(mediaStr)).
+		Expect().
+		Status(200).
+		JSON().
+		Path("$.id").
+		Number().
+		Raw()
+
+	// Create new source
+	segment := randomSegment()
+	segment.MediaID = ptr.Ptr(int64(mediaID))
+	segment.Protected = true
+
+	// Post segment
+	id := e.POST("/schedule").
+		WithHeader("Authorization", "Bearer "+token).
+		WithJSON(map[string]models.Segment{
+			"segment": segment,
+		}).
+		Expect().
+		Status(200).
+		JSON().
+		Path("$.id").
+		Number().
+		Raw()
+
+	// Get segment
+	json := e.GET("/schedule/{id}", int64(id)).
+		WithHeader("Authorization", "Bearer "+token).
+		Expect().
+		Status(200).
+		JSON()
+
+	// Check response
+	json.Object().Keys().ContainsOnly("segment")
+	json.Path("$.segment").Object().Keys().ContainsOnly("id", "mediaID", "start", "beginCut", "stopCut", "protected")
+	json.Path("$.segment.mediaID").Number().IsEqual(mediaID)
+	// json.Path("$.segment.beginCut").Number().IsEqual(*segment.BeginCut)
+	// json.Path("$.segment.stopCut").Number().IsEqual(*segment.StopCut)
+	json.Path("$.segment.protected").Boolean().IsEqual(true)
 
 	gotTime, err := time.Parse(
 		"2006-01-02T15:04:05.999999999-07:00",
@@ -253,7 +318,7 @@ func TestGetScheduleCut(t *testing.T) {
 
 	json.Object().Keys().ContainsOnly("segments")
 	for _, value := range json.Path("$.segments").Array().Iter() {
-		value.Object().Keys().ContainsOnly("id", "mediaID", "start", "beginCut", "stopCut")
+		value.Object().Keys().ContainsOnly("id", "mediaID", "start", "beginCut", "stopCut", "protected")
 	}
 }
 
@@ -283,28 +348,37 @@ func TestClearSchedule(t *testing.T) {
 		Number().
 		Raw()
 
-	// create 3 segments (before now, now, after now)
-	// after clearing second and third must be deleted
 	now := time.Now()
-	segmentBefore := models.Segment{
-		Start: ptr.Ptr(now.Add(-sourceDuration * 5)),
-	}
-	segmentNow := models.Segment{
-		Start: ptr.Ptr(now.Add(-sourceDuration / 2)),
-	}
-	segmentAfter := models.Segment{
-		Start: ptr.Ptr(now.Add(sourceDuration * 5)),
+
+	segments := []models.Segment{
+		{
+			Start: ptr.Ptr(now.Add(-sourceDuration * 5)),
+		},
+		{
+			Start:     ptr.Ptr(now.Add(-sourceDuration / 2)),
+			Protected: false,
+		},
+		{
+			Start:     ptr.Ptr(now.Add(-sourceDuration / 2)),
+			Protected: true,
+		},
+		{
+			Start:     ptr.Ptr(now.Add(sourceDuration * 5)),
+			Protected: false,
+		},
+		{
+			Start:     ptr.Ptr(now.Add(sourceDuration * 5)),
+			Protected: true,
+		},
 	}
 
-	segmentBefore.MediaID = ptr.Ptr(int64(mediaId))
-	segmentNow.MediaID = ptr.Ptr(int64(mediaId))
-	segmentAfter.MediaID = ptr.Ptr(int64(mediaId))
-
-	segments := []models.Segment{segmentBefore, segmentNow, segmentAfter}
-	ids := make([]int64, 3)
+	expectedRes := []int{400, 400, 200, 400, 200}
+	ids := make([]int64, 5)
 
 	// post 3 segments
 	for i, segment := range segments {
+		segment.MediaID = ptr.Ptr(int64(mediaId))
+
 		index := e.POST("/schedule").
 			WithHeader("Authorization", "Bearer "+token).
 			WithJSON(map[string]models.Segment{
@@ -326,18 +400,12 @@ func TestClearSchedule(t *testing.T) {
 		Status(200)
 
 	// Check the deletion
-	e.GET("/schedule/{id}", ids[0]).
-		WithHeader("Authorization", "Bearer "+token).
-		Expect().
-		Status(200)
-	e.GET("/schedule/{id}", ids[1]).
-		WithHeader("Authorization", "Bearer "+token).
-		Expect().
-		Status(400)
-	e.GET("/schedule/{id}", ids[2]).
-		WithHeader("Authorization", "Bearer "+token).
-		Expect().
-		Status(400)
+	for i, id := range ids {
+		e.GET("/schedule/{id}", id).
+			WithHeader("Authorization", "Bearer "+token).
+			Expect().
+			Status(expectedRes[i])
+	}
 }
 
 // TODO: enable beginCut stopCut when it will be fixed
