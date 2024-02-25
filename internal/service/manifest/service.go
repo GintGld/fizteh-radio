@@ -76,7 +76,6 @@ func New(
 	}
 }
 
-// TODO: enable segments intersection
 // TODO: get meta information about segment (if needed)
 // TODO: remove baseurl, since it does not work correctly (or fix it)
 
