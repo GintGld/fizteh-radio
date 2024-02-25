@@ -37,6 +37,8 @@ WORKDIR /radio
 COPY --from=builder /build/radio /radio/radio
 COPY --from=builder /build/migrator /radio/migrator
 
+# TODO: move this copies to external volumes
+
 # copy utils
 COPY config/prod.yaml .
 COPY migrations migrations
