@@ -131,15 +131,15 @@ mainloop:
 		}
 
 		select {
-		case <-time.After(d.updateFreq):
-			log.Debug("timer tick")
 		case <-d.notifyChan:
 			log.Debug("got notify chan")
 		case <-d.stopChan:
 			log.Debug("got stop chan")
-			break mainloop
 		case <-ctx.Done():
 			log.Debug("got context stop")
+			break mainloop
+		case <-time.After(d.updateFreq):
+			log.Debug("timer tick")
 			break mainloop
 		}
 	}
