@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
-	ptr "github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/internal/service"
 	"github.com/GintGld/fizteh-radio/internal/storage"
@@ -94,17 +93,36 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 
 	log.Info("validating media", slog.Int64("id", *segment.MediaID))
 
-	if media, err := s.mediaStorage.Media(ctx, *segment.MediaID); err != nil {
+	media, err := s.mediaStorage.Media(ctx, *segment.MediaID)
+
+	if err != nil {
 		if errors.Is(err, storage.ErrMediaNotFound) {
 			log.Warn("media not found", slog.Int64("id", *segment.MediaID))
 			return 0, service.ErrMediaNotFound
 		}
 		log.Error("failed to get media", slog.Int64("id", *segment.MediaID), sl.Err(err))
 		return 0, fmt.Errorf("%s: %w", op, err)
-	} else {
-		// TODO: it is temporary fix, remove it later
-		segment.BeginCut = ptr.Ptr(time.Duration(0))
-		segment.StopCut = ptr.Ptr(*media.Duration)
+	}
+
+	// Check cut correctness
+	if *media.Duration < *segment.StopCut ||
+		*media.Duration < *segment.BeginCut ||
+		*segment.BeginCut < 0 ||
+		*segment.StopCut < 0 {
+		log.Warn(
+			"invalid cut (out of bounds)",
+			slog.Int64("beginCut", segment.BeginCut.Microseconds()),
+			slog.Int64("stopCut", segment.StopCut.Microseconds()),
+		)
+		return 0, service.ErrCutOutOfBounds
+	}
+	if *segment.BeginCut > *segment.StopCut {
+		log.Warn(
+			"invalid cut (start after stop)",
+			slog.Int64("beginCut", segment.BeginCut.Microseconds()),
+			slog.Int64("stopCut", segment.StopCut.Microseconds()),
+		)
+		return 0, service.ErrBeginAfterStop
 	}
 
 	log.Info("media is valid", slog.Int64("id", *segment.MediaID))

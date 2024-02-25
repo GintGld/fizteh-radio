@@ -46,8 +46,6 @@ func New(
 	return app
 }
 
-// TODO: realize this methods
-
 // TODO: move media validation from service to controller
 
 // scheduleCut returns segments intersecting given interval
@@ -102,37 +100,32 @@ func (schCtr *scheduleController) newSegment(c *fiber.Ctx) error {
 			"error": "start not defined",
 		})
 	}
-	// if form.Segment.BeginCut == nil {
-	// 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-	// 		"error": "beginCut not defined",
-	// 	})
-	// }
-	// if form.Segment.StopCut == nil {
-	// 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-	// 		"error": "stopCut not defined",
-	// 	})
-	// }
-	if form.Segment.BeginCut != nil {
+	if form.Segment.BeginCut == nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "beginCut not implemented",
+			"error": "beginCut not defined",
 		})
 	}
-	if form.Segment.StopCut != nil {
+	if form.Segment.StopCut == nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "stopCut not implemented",
+			"error": "stopCut not defined",
 		})
 	}
-	// if *form.Segment.BeginCut >= *form.Segment.StopCut {
-	// 	c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-	// 		"error": "beginCut is later that stopCut",
-	// 	})
-	// }
 
 	id, err := schCtr.schSrv.NewSegment(context.TODO(), form.Segment)
 	if err != nil {
 		if errors.Is(err, service.ErrMediaNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "media not found",
+			})
+		}
+		if errors.Is(err, service.ErrCutOutOfBounds) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "cut out of bounds",
+			})
+		}
+		if errors.Is(err, service.ErrBeginAfterStop) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "begin after stop",
 			})
 		}
 		return c.SendStatus(fiber.StatusInternalServerError)

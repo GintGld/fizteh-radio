@@ -114,8 +114,8 @@ func TestGetSegment(t *testing.T) {
 	json.Object().Keys().ContainsOnly("segment")
 	json.Path("$.segment").Object().Keys().ContainsOnly("id", "mediaID", "start", "beginCut", "stopCut", "protected")
 	json.Path("$.segment.mediaID").Number().IsEqual(mediaID)
-	// json.Path("$.segment.beginCut").Number().IsEqual(*segment.BeginCut)
-	// json.Path("$.segment.stopCut").Number().IsEqual(*segment.StopCut)
+	json.Path("$.segment.beginCut").Number().IsEqual(*segment.BeginCut)
+	json.Path("$.segment.stopCut").Number().IsEqual(*segment.StopCut)
 	json.Path("$.segment.protected").Boolean().IsEqual(false)
 
 	gotTime, err := time.Parse(
@@ -183,8 +183,8 @@ func TestGetProtectedSegment(t *testing.T) {
 	json.Object().Keys().ContainsOnly("segment")
 	json.Path("$.segment").Object().Keys().ContainsOnly("id", "mediaID", "start", "beginCut", "stopCut", "protected")
 	json.Path("$.segment.mediaID").Number().IsEqual(mediaID)
-	// json.Path("$.segment.beginCut").Number().IsEqual(*segment.BeginCut)
-	// json.Path("$.segment.stopCut").Number().IsEqual(*segment.StopCut)
+	json.Path("$.segment.beginCut").Number().IsEqual(*segment.BeginCut)
+	json.Path("$.segment.stopCut").Number().IsEqual(*segment.StopCut)
 	json.Path("$.segment.protected").Boolean().IsEqual(true)
 
 	gotTime, err := time.Parse(
@@ -372,12 +372,13 @@ func TestClearSchedule(t *testing.T) {
 		},
 	}
 
-	expectedRes := []int{400, 400, 200, 400, 200}
+	expectedRes := []int{200, 400, 200, 400, 200}
 	ids := make([]int64, 5)
 
-	// post 3 segments
 	for i, segment := range segments {
 		segment.MediaID = ptr.Ptr(int64(mediaId))
+		segment.BeginCut = ptr.Ptr[time.Duration](0)
+		segment.StopCut = ptr.Ptr(sourceDuration)
 
 		index := e.POST("/schedule").
 			WithHeader("Authorization", "Bearer "+token).
@@ -408,16 +409,19 @@ func TestClearSchedule(t *testing.T) {
 	}
 }
 
-// TODO: enable beginCut stopCut when it will be fixed
-
 // randomSegment creates segment (id and mediaId fields are not specified)
 func randomSegment() models.Segment {
-	// begin := time.Duration(gofakeit.Uint32())
-	// stop := begin + time.Duration(gofakeit.Uint32())
+	begin := time.Duration(gofakeit.Uint32())
+	stop := begin + time.Duration(gofakeit.Uint32())
+
+	// all time is stored with precision
+	// to microseconds
+	begin = begin.Truncate(time.Microsecond)
+	stop = stop.Truncate(time.Microsecond)
 
 	return models.Segment{
-		Start: ptr.Ptr(gofakeit.Date()),
-		// BeginCut: &begin,
-		// StopCut:  &stop,
+		Start:    ptr.Ptr(gofakeit.Date()),
+		BeginCut: &begin,
+		StopCut:  &stop,
 	}
 }

@@ -28,7 +28,7 @@ type byteWriter struct {
 	data []byte
 }
 
-func NewWriter() *byteWriter {
+func newWriter() *byteWriter {
 	return &byteWriter{
 		data: make([]byte, 0),
 	}
@@ -131,16 +131,16 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 	// TODO: temporary disabled start/stop cutting,
 	// return it later
 
-	// startString := strconv.FormatFloat(s.BeginCut.Seconds(), 'g', -1, 64)
-	// stopString := strconv.FormatFloat(s.StopCut.Seconds(), 'g', -1, 64)
+	startString := strconv.FormatFloat(s.BeginCut.Seconds(), 'g', -1, 64)
+	stopString := strconv.FormatFloat(s.StopCut.Seconds(), 'g', -1, 64)
 	durationString := strconv.FormatFloat(c.chunkLenght.Seconds(), 'g', -1, 64)
 
 	cmd := exec.Command(
-		"ffmpeg",       //						call converter
-		"-hide_banner", //						hide banner
-		"-y",           //						force rewriting file
-		// "-ss", startString, //						start cut
-		// "-to", stopString, //						stop cut
+		"ffmpeg",           //						call converter
+		"-hide_banner",     //						hide banner
+		"-y",               //						force rewriting file
+		"-ss", startString, //						start cut
+		"-to", stopString, //						stop cut
 		"-i", filePath, //							input file
 		"-c:a", "aac", //							choose codec
 		"-b:a", strconv.Itoa(bitrate), //			choose bitrate (TODO: make different bitrate to enable bitrateSwitching)
@@ -148,7 +148,7 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 		"-ar", strconv.Itoa(samplingRate), // 		sampling frequency (usually 44100/48000)
 		"-dash_segment_type", "mp4", //				container segments format
 		"-use_template", "1", //					use template instead of enumerate (shorter output)
-		"-use_timeline", "0", //					more information about timing for all segments
+		"-use_timeline", "0", //					disable more information about timing for all segments
 		"-init_seg_name", ffmpeg.InitFile(s), //	template for initialization segment
 		"-media_seg_name", ffmpeg.ChunkFile(s), //	template for data segments
 		"-seg_duration", durationString, //			duration of each segment
@@ -158,7 +158,7 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 
 	log.Debug("prepared cmd", slog.String("cmd", cmd.String()))
 
-	errorWriter := NewWriter()
+	errorWriter := newWriter()
 	cmd.Stderr = errorWriter
 
 	log.Debug("set stderr")
