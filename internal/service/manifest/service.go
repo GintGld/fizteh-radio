@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
@@ -100,18 +99,22 @@ func (m *Manifest) SetSchedule(_ context.Context, schedule []models.Segment) err
 	m.man.Periods = make([]*mpd.Period, len(schedule))
 
 	for i, segment := range schedule {
-		// check for segment intersection (naive realisation)
-		if i > 0 {
-			prev := schedule[i-1]
-			if prev.Start.Add(*prev.StopCut - *prev.BeginCut).After(*segment.Start) {
-				log.Error(
-					"segment intersection not implemented",
-					slog.Time("prev end", prev.Start.Add(*prev.StopCut-*prev.BeginCut)),
-					slog.Time("curr start", *segment.Start),
-					slog.Float64("beginCut", prev.BeginCut.Seconds()),
-					slog.Float64("stop", prev.StopCut.Seconds()),
+		// Handle segment intersection.
+		// That's no guarantee that client
+		// won't play rameined chunks.
+		// Music stream may be raggy,
+		// but nor server nor client won't crash.
+		if i < len(schedule)-1 {
+			next := schedule[i+1]
+			if segment.Start.Add(*segment.StopCut - *segment.BeginCut).After(*next.Start) {
+				log.Warn(
+					"segment intersection detected",
+					slog.Time("curr end", segment.Start.Add(*segment.StopCut-*segment.BeginCut)),
+					slog.Time("next start", *next.Start),
+					slog.Float64("beginCut", segment.BeginCut.Seconds()),
+					slog.Float64("stop", segment.StopCut.Seconds()),
 				)
-				return fmt.Errorf("%s: %s", op, "segment intersection not implemented")
+				*segment.StopCut = next.Start.Sub(*segment.Start)
 			}
 		}
 
@@ -126,15 +129,15 @@ func (m *Manifest) SetSchedule(_ context.Context, schedule []models.Segment) err
 				SegmentAlignment: ptr.Ptr(true),
 				Representations: []*mpd.Representation{{
 					ID:                ptr.Ptr("0"),
-					AudioSamplingRate: ptr.Ptr((int64)(44100)),
-					Bandwidth:         ptr.Ptr((int64)(96000)),
+					AudioSamplingRate: ptr.Ptr[int64](44100),
+					Bandwidth:         ptr.Ptr[int64](96000),
 					Codecs:            ptr.Ptr("mp4a.40.2"),
 					SegmentTemplate: &mpd.SegmentTemplate{
-						StartNumber:    ptr.Ptr((int64)(1)),
+						StartNumber:    ptr.Ptr[int64](1),
 						Initialization: ptr.Ptr(ffmpeg.InitFile(segment)),
 						Media:          ptr.Ptr(ffmpeg.ChunkFile(segment)),
-						Duration:       ptr.Ptr((int64)(m.chunkLength.Milliseconds())),
-						Timescale:      ptr.Ptr((int64)(1000)),
+						Duration:       ptr.Ptr(m.chunkLength.Milliseconds()),
+						Timescale:      ptr.Ptr[int64](1000),
 					},
 					CommonAttributesAndElements: mpd.CommonAttributesAndElements{
 						MimeType: ptr.Ptr(mpd.DASH_MIME_TYPE_AUDIO_MP4),
@@ -145,7 +148,7 @@ func (m *Manifest) SetSchedule(_ context.Context, schedule []models.Segment) err
 					},
 				}},
 				CommonAttributesAndElements: mpd.CommonAttributesAndElements{
-					StartWithSAP: ptr.Ptr((int64)(1)),
+					StartWithSAP: ptr.Ptr[int64](1),
 				},
 			}},
 		}
