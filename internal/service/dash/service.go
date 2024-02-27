@@ -79,9 +79,10 @@ func (d *Dash) Run(ctx context.Context) error {
 
 	log.Info("start dash")
 
-	// After loop stops, all generated files will be deleted
-	//defer d.content.CleanUp() TODO: fix it or remove it
-	defer d.manifest.CleanUp()
+	// Before loop starts, the directory will
+	// be clean from previous files.
+	d.content.CleanUp()
+	d.manifest.CleanUp()
 
 	if err := d.content.Init(); err != nil {
 		log.Error("failed to init content maker", sl.Err(err))
