@@ -34,6 +34,7 @@ func main() {
 		cfg.TokenTTL,
 		getSecret(),
 		getRootPass(),
+		cfg.MaxAnswerLength,
 		cfg.TmpDir,
 		cfg.SourcePath,
 		cfg.NestingDepth,

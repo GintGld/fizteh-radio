@@ -19,10 +19,11 @@ type Config struct {
 }
 
 type HTTPServer struct {
-	Address      string        `yaml:"address" env-default:"localhost:8080"`
-	Timeout      time.Duration `yaml:"timeout" end-default:"4s"`
-	IddleTimeout time.Duration `yaml:"idle_timeout" env-default:"60s"`
-	TmpDir       string        `yaml:"tmp_dir" env-default:"./tmp"`
+	Address         string        `yaml:"address" env-default:"localhost:8080"`
+	Timeout         time.Duration `yaml:"timeout" end-default:"4s"`
+	IddleTimeout    time.Duration `yaml:"idle_timeout" env-default:"60s"`
+	MaxAnswerLength int           `yaml:"max-answer-length" env-default:"100"`
+	TmpDir          string        `yaml:"tmp_dir" env-default:"./tmp"`
 }
 
 type Dash struct {

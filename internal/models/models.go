@@ -44,6 +44,12 @@ type Media struct {
 	Tags     TagList        `json:"tags"`
 }
 
+type MediaFilter struct {
+	Name   string   `query:"name"`
+	Author string   `query:"name"`
+	Tags   []string `query:"tags"`
+}
+
 type TagTypes []TagType
 type TagList []Tag
 

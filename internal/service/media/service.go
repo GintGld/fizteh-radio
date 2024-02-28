@@ -14,16 +14,18 @@ import (
 )
 
 type Media struct {
-	log          *slog.Logger
-	mediaStorage MediaStorage
-	tagTypes     models.TagTypes
+	log             *slog.Logger
+	mediaStorage    MediaStorage
+	tagTypes        models.TagTypes
+	maxAnswerLength int
 }
 
 type MediaStorage interface {
-	AllMedia(ctx context.Context) ([]models.Media, error)
+	AllMedia(ctx context.Context, limit, offset int) ([]models.Media, error)
 	SaveMedia(ctx context.Context, newMedia models.Media) (int64, error)
 	UpdateMediaBasicInfo(ctx context.Context, media models.Media) error
 	Media(ctx context.Context, id int64) (models.Media, error)
+	MediaTags(ctx context.Context, id int64) (models.TagList, error)
 	DeleteMedia(ctx context.Context, id int64) error
 	TagTypes(ctx context.Context) (models.TagTypes, error)
 	AllTags(ctx context.Context) (models.TagList, error)
@@ -38,6 +40,7 @@ type MediaStorage interface {
 func New(
 	log *slog.Logger,
 	mediaStorage MediaStorage,
+	maxAnswerLength int,
 ) *Media {
 	const op = "Media.New"
 
@@ -53,39 +56,116 @@ func New(
 	}
 
 	return &Media{
-		log:          log,
-		mediaStorage: mediaStorage,
-		tagTypes:     tagTypes,
+		log:             log,
+		mediaStorage:    mediaStorage,
+		tagTypes:        tagTypes,
+		maxAnswerLength: maxAnswerLength,
 	}
 }
 
 // TODO: in logging save editor name (put in context)
-// TODO: searching filters
 // TODO: autodj
 
-func (l *Media) AllMedia(ctx context.Context) ([]models.Media, error) {
-	const op = "Media.AllMedia"
+func (l *Media) SearchMedia(ctx context.Context, filter models.MediaFilter) ([]models.Media, error) {
+	const op = "Media.SearchMedia"
 
 	log := l.log.With(
 		slog.String("op", op),
 		slog.String("editorname", models.RootLogin),
 	)
 
-	log.Info("getting all media")
+	log.Info(
+		"start search",
+		slog.String("name", filter.Name),
+		slog.String("author", filter.Author),
+		slog.Any("tags", filter.Tags),
+	)
 
-	media, err := l.mediaStorage.AllMedia(ctx)
-	if err != nil {
-		if errors.Is(err, storage.ErrMediaNotFound) {
-			log.Warn("media not found")
-			return []models.Media{}, service.ErrMediaNotFound
+	bestRes := make([]mediaRank, 0)
+
+main_loop:
+	for offset := 0; ; offset += l.maxAnswerLength {
+		// Get new media chunk
+		newSlice, err := l.mediaStorage.AllMedia(ctx, l.maxAnswerLength, offset)
+		if err != nil {
+			log.Error(
+				"failed to get media",
+				slog.Int("limit", offset),
+				slog.Int("offset", l.maxAnswerLength),
+				sl.Err(err),
+			)
+			return []models.Media{}, fmt.Errorf("%s: %w", op, err)
 		}
-		log.Error("failed to get media", sl.Err(err))
-		return []models.Media{}, err
+		// End point
+		if len(newSlice) == 0 {
+			break main_loop
+		}
+		// Add media tags
+		for _, media := range newSlice {
+			// Get media tags
+			media.Tags, err = l.mediaStorage.MediaTags(ctx, *media.ID)
+			if err != nil {
+				log.Error("failed to get media tag list", slog.Int64("id", *media.ID), sl.Err(err))
+				return []models.Media{}, fmt.Errorf("%s: %w", op, err)
+			}
+		}
+		// Apply filter
+		merge := filterRank(newSlice, filter)
+		// Merge new slice with previous one
+		bestRes = mergeLibs(bestRes, merge)[:l.maxAnswerLength]
+
+		// Shortcut for tag filter only
+		if filter.Name == "" &&
+			filter.Author == "" &&
+			len(bestRes) == l.maxAnswerLength {
+			break main_loop
+		}
 	}
 
-	log.Info("found media")
+	// Create slice for the answer (drop rank info).
+	res := make([]models.Media, len(bestRes))
+	for i, mediaRank := range bestRes {
+		res[i] = mediaRank.media
+	}
 
-	return media, nil
+	log.Info("finish search")
+
+	return res, nil
+}
+
+// mergeLibs merges 2 slices in ascending order
+func mergeLibs(l1 []mediaRank, l2 []mediaRank) []mediaRank {
+	res := make([]mediaRank, len(l1)+len(l2))
+
+	var (
+		i1 = 0
+		i2 = 0
+	)
+
+	for i := 0; i < len(res); i++ {
+		i := i
+
+		if i1 == len(l1) {
+			res[i] = l2[i2]
+			i2++
+			continue
+		}
+		if i2 == len(l2) {
+			res[i] = l1[i1]
+			i1++
+			continue
+		}
+
+		if rankCmp(l1[i1], l2[i2]) < 0 {
+			res[i] = l1[i1]
+			i1++
+		} else {
+			res[i] = l2[i2]
+			i2++
+		}
+	}
+
+	return res
 }
 
 // NewMedia registers new editor in the system and returns media ID.

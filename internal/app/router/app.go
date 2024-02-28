@@ -42,6 +42,7 @@ func New(
 	tokenTTL time.Duration,
 	secret []byte,
 	rootPass []byte,
+	maxAnswerLength int,
 	tmpDir string,
 	sourceDir string,
 	nestingDepth int,
@@ -79,6 +80,7 @@ func New(
 	lib := mediaSrv.New(
 		log,
 		storage,
+		maxAnswerLength,
 	)
 	// Source library service
 	src := srcSrv.New(
@@ -151,12 +153,12 @@ func New(
 			if id == "" {
 				return c.SendStatus(fiber.StatusNotFound)
 			}
-	
+
 			file := c.Params("file")
 			if file == "" {
 				return c.SendStatus(fiber.StatusNotFound)
 			}
-	
+
 			return c.SendFile(contentDir + "/" + id + "/" + file)
 		})
 	}

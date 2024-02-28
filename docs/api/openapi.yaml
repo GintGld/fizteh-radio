@@ -171,6 +171,21 @@ paths:
         - 'Library: Media'
       security:
         - editorAuth: []
+      parameters:
+        - in: query
+          name: name
+          schema:
+            type: string
+        - in: query
+          name: author
+          schema:
+            type: string
+        - in: query
+          name: tags
+          schema:
+            type: array
+            items:
+              type: string
       responses:
         '200':
           description: Found editor

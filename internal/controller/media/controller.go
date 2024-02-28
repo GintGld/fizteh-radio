@@ -29,11 +29,13 @@ func New(
 		tmpDir:   tmpDir,
 	}
 
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		EnableSplittingOnParsers: true,
+	})
 
 	app.Use(jwtC.AuthRequired())
 
-	app.Get("/media", mediaCtr.allMedia)
+	app.Get("/media", mediaCtr.searchMedia)
 	app.Post("/media", mediaCtr.newMedia)
 	app.Put("/media", mediaCtr.updateMedia)
 	app.Get("/media/:id", mediaCtr.media)
@@ -56,7 +58,7 @@ type mediaController struct {
 }
 
 type Media interface {
-	AllMedia(ctx context.Context) ([]models.Media, error)
+	SearchMedia(ctx context.Context, filter models.MediaFilter) ([]models.Media, error)
 	NewMedia(ctx context.Context, media models.Media) (int64, error)
 	UpdateMedia(ctx context.Context, media models.Media) error
 	MultiTagMedia(ctx context.Context, tag models.Tag, mediaIds ...int64) error
@@ -79,9 +81,18 @@ type Source interface {
 
 // TODO: add PUT method for source
 
-// allMedia returns all media
-func (mediaCtr *mediaController) allMedia(c *fiber.Ctx) error {
-	lib, err := mediaCtr.srvMedia.AllMedia(context.TODO())
+// searchMedia returns media list filtered and sorted
+// by query criteria.
+func (mediaCtr *mediaController) searchMedia(c *fiber.Ctx) error {
+	var filter models.MediaFilter
+
+	if err := c.QueryParser(&filter); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid query",
+		})
+	}
+
+	lib, err := mediaCtr.srvMedia.SearchMedia(context.TODO(), filter)
 	if err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}

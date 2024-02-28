@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -15,106 +16,47 @@ import (
 	"github.com/GintGld/fizteh-radio/internal/storage"
 )
 
-// AllMedia return all media in library.
-func (s *Storage) AllMedia(ctx context.Context) ([]models.Media, error) {
-	const op = "storage.sqlite.AllMedia"
+// AllMedia returns media from library
+// cutted by given limit and offset.
+func (s *Storage) AllMedia(ctx context.Context, limit, offset int) ([]models.Media, error) {
+	const op = "storage.sqlite.MediaSearch"
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return []models.Media{}, fmt.Errorf("%s: %w", op, err)
-	}
-	defer tx.Rollback()
-
-	libraryTags, err := s.allMediaSubTags(tx, ctx)
-	if err != nil {
-		return []models.Media{}, fmt.Errorf("%s: %w", op, err)
-	}
-
-	lib, err := s.allMediaSubBasicInfo(tx, ctx, libraryTags)
-	if err != nil {
-		return []models.Media{}, fmt.Errorf("%s: %w", op, err)
-	}
-
-	return lib, nil
-}
-
-// allMediaSubTags return map containing
-// tag names for every media id.
-func (s *Storage) allMediaSubTags(tx statementBuilder, ctx context.Context) (map[int64]models.TagList, error) {
-	const op = "allMediaSubTags"
-
-	var id int64
-	libraryTags := make(map[int64]models.TagList, 0)
-	stmt, err := tx.PrepareContext(ctx, `
-		SELECT lt.media_id, t.name, tt.id, tt.name FROM libraryTag AS lt
-		JOIN tag AS t ON t.id = lt.tag_id
-		JOIN tagType AS tt ON t.type_id = tt.id
+	stmt, err := s.db.PrepareContext(ctx, `
+		SELECT id, name, author, duration
+		FROM library
+		LIMIT ? OFFSET ?
 	`)
 	if err != nil {
-		return map[int64]models.TagList{}, fmt.Errorf("%s: %w", op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
-	defer stmt.Close()
 
-	rows, err := stmt.QueryContext(ctx)
+	rows, err := stmt.QueryContext(ctx, limit, offset)
 	if err != nil {
-		return map[int64]models.TagList{}, fmt.Errorf("%s: %w", op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	var tag models.Tag
-	for rows.Next() {
-		if err = rows.Scan(&id, &tag.Name, &tag.Type.ID, &tag.Type.Name); err != nil {
-			return map[int64]models.TagList{}, fmt.Errorf("%s: %w", op, err)
-		}
+	res := make([]models.Media, 0, limit)
 
-		if entry, ok := libraryTags[id]; ok {
-			entry = append(entry, tag)
-			libraryTags[id] = entry
-		}
-	}
-
-	return libraryTags, nil
-}
-
-// allMediaSubBasicInfo returns media list.
-func (s *Storage) allMediaSubBasicInfo(tx statementBuilder, ctx context.Context, libraryTags map[int64]models.TagList) ([]models.Media, error) {
-	const op = "storage.sqlite.allMediaSubBasicInfo"
-
-	stmt, err := tx.PrepareContext(ctx, `
-		SELECT l.id, l.name, l.author, l.duration
-		FROM library AS l;
-	`)
-	if err != nil {
-		return []models.Media{}, fmt.Errorf("%s: %w", op, err)
-	}
-	defer stmt.Close()
-
-	rows, err := stmt.QueryContext(ctx)
-	if err != nil {
-		return []models.Media{}, fmt.Errorf("%s: %w", op, err)
-	}
-
-	lib := make([]models.Media, 0, len(libraryTags))
 	var (
 		id           int64
 		name, author string
 		durationMs   int64
-		tagCount     int
 	)
+
 	for rows.Next() {
-		if err = rows.Scan(&id, &name, &author, &durationMs, &tagCount); err != nil {
+		if err = rows.Scan(&id, &name, &author, &durationMs); err != nil {
 			return []models.Media{}, fmt.Errorf("%s: %w", op, err)
 		}
 
-		lib = append(lib, models.Media{
+		res = append(res, models.Media{
 			ID:       ptr.Ptr(id),
 			Name:     ptr.Ptr(name),
 			Author:   ptr.Ptr(author),
 			Duration: ptr.Ptr(time.Duration(durationMs) * time.Microsecond),
-			Tags:     libraryTags[id],
 		})
 	}
 
-	return lib, nil
+	return slices.Clip(res), nil
 }
 
 // SaveMedia saves necessary information
@@ -198,6 +140,8 @@ func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 	return media, nil
 }
 
+// TODO: remove sub commands
+
 // mediaSubBasicInfo returns media with basic information
 // bt its id.
 func (s *Storage) mediaSubBasicInfo(tx statementBuilder, ctx context.Context, id int64) (models.Media, error) {
@@ -239,6 +183,40 @@ func (s *Storage) mediaSubTags(tx statementBuilder, ctx context.Context, id int6
 	const op = "storage.sqlite.mediaSubTags"
 
 	stmt, err := tx.PrepareContext(ctx, `
+		SELECT t.id, t.name, tt.id, tt.name
+		FROM libraryTag AS lt
+		JOIN tag as t ON t.id = lt.tag_id
+		JOIN library AS l ON l.id = lt.media_id
+		JOIN tagType AS tt ON tt.id = t.type_id
+		WHERE l.id = ?
+	`)
+	if err != nil {
+		return models.TagList{}, fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.QueryContext(ctx, id)
+	if err != nil {
+		return models.TagList{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	var tag models.Tag
+	tags := make(models.TagList, 0)
+
+	for rows.Next() {
+		if err := rows.Scan(&tag.ID, &tag.Name, &tag.Type.ID, &tag.Type.Name); err != nil {
+			return models.TagList{}, fmt.Errorf("%s: %w", op, err)
+		}
+		tags = append(tags, tag)
+	}
+
+	return tags, nil
+}
+
+func (s *Storage) MediaTags(ctx context.Context, id int64) (models.TagList, error) {
+	const op = "storage.sqlite.mediaSubTags"
+
+	stmt, err := s.db.PrepareContext(ctx, `
 		SELECT t.id, t.name, tt.id, tt.name
 		FROM libraryTag AS lt
 		JOIN tag as t ON t.id = lt.tag_id

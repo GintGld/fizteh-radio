@@ -685,6 +685,28 @@ func TestDeleteNotExistingMedia(t *testing.T) {
 	json.Path("$.error").String().IsEqualFold("media not found")
 }
 
+func TestSearchMediaWithoutQuery(t *testing.T) {
+	token, err := suite.RootLogin()
+	require.NoError(t, err)
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   cfg.Address,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	json := e.GET("/library/media").
+		WithHeader("Authorization", "Bearer "+token).
+		Expect().
+		Status(200).
+		JSON()
+
+	json.Object().Keys().ContainsOnly("library")
+	for _, value := range json.Path("$.library").Array().Iter() {
+		value.Object().Keys().ContainsOnly("id", "name", "author", "duration", "tags")
+	}
+}
+
 func TestTagTypes(t *testing.T) {
 	token, err := suite.RootLogin()
 	require.NoError(t, err)

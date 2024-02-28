@@ -13,10 +13,12 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.17.0
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/joho/godotenv v1.5.1
+	github.com/lithammer/fuzzysearch v1.1.8
 	github.com/mattn/go-sqlite3 v1.14.19
 	github.com/stretchr/testify v1.8.4
 	github.com/zencoder/go-dash/v3 v3.0.3
 	golang.org/x/crypto v0.19.0
+	golang.org/x/text v0.14.0
 )
 
 require (
