@@ -14,8 +14,12 @@ import (
 	"github.com/GintGld/fizteh-radio/internal/storage"
 )
 
-// TODO: rename all variables named *Ms to smth else
-// because they are nanoseconds
+/*
+// All time values are stored in microseconds.
+// It is motivated by dash precision.
+*/
+
+// TODO: SaveSegment should take segmetns ...models.Segment
 
 // ScheduelCut returns all segments intersecting given interval.
 func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Time) ([]models.Segment, error) {
@@ -26,13 +30,9 @@ func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Ti
 		SELECT id, media_id, start_mus, begin_cut, stop_cut 
 		FROM schedule
 		WHERE (
-			(
-				$1 <= start_mus AND
-				$2 >= start_mus
-			) OR (
-				$1 <= start_mus + (stop_cut - begin_cut) AND
-				$2 >= start_mus + (stop_cut - begin_cut)
-			)
+			start_mus BETWEEN $1 AND $2
+			OR
+			start_mus + (stop_cut - begin_cut) BETWEEN $1 AND $2
 		)
 	`)
 	if err != nil {
@@ -173,11 +173,57 @@ func (s *Storage) DeleteSegment(ctx context.Context, id int64) error {
 	return nil
 }
 
+// ProtectSegment set protect label for segment,
+// which mean it won't be deleted by ClearSchedule.
+func (s *Storage) ProtectSegment(ctx context.Context, id int64) error {
+	const op = "storage.sqlite.ProtectSegment"
+
+	stmt, err := s.db.Prepare("INSERT INTO schedule_protect(segment_id) VALUES(?)")
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	if _, err := stmt.ExecContext(ctx, id); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
+// IsSegmentProtected returns true, if
+// segment is protected from ClearSchedule.
+func (s *Storage) IsSegmentProtected(ctx context.Context, id int64) (bool, error) {
+	const op = "storage.sqlite.IsSegmentProtected"
+
+	stmt, err := s.db.Prepare("SELECT EXISTS (SELECT id FROM schedule_protect WHERE segment_id=?)")
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	row := stmt.QueryRowContext(ctx, id)
+
+	var res int8
+
+	if row.Scan(&res); err != nil {
+		return false, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return res == 1, nil
+}
+
 // ClearSchedule clears schedule from given timestamp.
+// Doesn't delete protected segments.
 func (s *Storage) ClearSchedule(ctx context.Context, from time.Time) error {
 	const op = "storage.sqlite.ClearSchedule"
 
-	stmt, err := s.db.Prepare("DELETE FROM schedule WHERE start_mus + (stop_cut - begin_cut) >= ?")
+	stmt, err := s.db.Prepare(`
+		DELETE FROM schedule
+		WHERE start_mus + (stop_cut - begin_cut) >= ?
+		AND
+		NOT EXISTS (SELECT * FROM schedule_protect WHERE schedule_protect.segment_id = schedule.id)
+	`)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}

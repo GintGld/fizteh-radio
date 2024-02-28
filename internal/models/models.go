@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // TODO: split into different files when become too big
 
@@ -56,9 +59,28 @@ type TagType struct {
 }
 
 type Segment struct {
-	ID       *int64         `json:"id"`
-	MediaID  *int64         `json:"mediaID"`
-	Start    *time.Time     `json:"start"`
-	BeginCut *time.Duration `json:"beginCut"`
-	StopCut  *time.Duration `json:"stopCut"`
+	ID        *int64         `json:"id"`
+	MediaID   *int64         `json:"mediaID"`
+	Start     *time.Time     `json:"start"`
+	BeginCut  *time.Duration `json:"beginCut"`
+	StopCut   *time.Duration `json:"stopCut"`
+	Protected bool           `json:"protected"`
+}
+
+// specify custom time marshalling since
+// time package is not stable.
+const TimeFormat = "2006-01-02T15:04:05.999999999-07:00"
+
+func (s Segment) MarshalJSON() ([]byte, error) {
+	type segmentJSON Segment
+
+	tmp := struct {
+		segmentJSON
+		Time string `json:"start"`
+	}{
+		segmentJSON: segmentJSON(s),
+		Time:        s.Start.Format(TimeFormat),
+	}
+
+	return json.Marshal(tmp)
 }

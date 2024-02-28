@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -32,8 +33,6 @@ type App struct {
 	app     *fiber.App
 	dash    *dashSrv.Dash
 }
-
-// TODO: special handler (controller) to start/stop dash app
 
 // New returns configured router.App
 func New(
@@ -126,6 +125,8 @@ func New(
 	// Controller helper
 	jwtCtr := jwtCtr.New(secret)
 
+	// TODO: body message limit more accurate
+
 	// 300 MB limit for body message (~ 2.1 hours for .mp3 with 320 kbit/s)
 	app := fiber.New(fiber.Config{
 		BodyLimit: 300 * 1024 * 1024,
@@ -137,7 +138,28 @@ func New(
 	app.Mount("/library", mediaCtr.New(lib, src, jwtCtr, tmpDir))
 	app.Mount("/schedule", schCtr.New(sch, jwtCtr))
 	app.Mount("/radio", dashCtr.New(manPath, contentDir, jwtCtr, dash))
-	app.Static("/", "./public") // TODO: remove it since use nginx to serve static
+
+	// In debug mode there's no proxy that serves static files.
+	if log.Enabled(context.Background(), slog.LevelDebug) {
+		app.Static("/", "./public")
+
+		app.Get("/mpd", func(c *fiber.Ctx) error {
+			return c.SendFile(manPath)
+		})
+		app.Get("/:id/:file", func(c *fiber.Ctx) error {
+			id := c.Params("id")
+			if id == "" {
+				return c.SendStatus(fiber.StatusNotFound)
+			}
+	
+			file := c.Params("file")
+			if file == "" {
+				return c.SendStatus(fiber.StatusNotFound)
+			}
+	
+			return c.SendFile(contentDir + "/" + id + "/" + file)
+		})
+	}
 
 	return &App{
 		log:     log,

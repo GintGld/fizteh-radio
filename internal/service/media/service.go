@@ -60,6 +60,8 @@ func New(
 }
 
 // TODO: in logging save editor name (put in context)
+// TODO: searching filters
+// TODO: autodj
 
 func (l *Media) AllMedia(ctx context.Context) ([]models.Media, error) {
 	const op = "Media.AllMedia"

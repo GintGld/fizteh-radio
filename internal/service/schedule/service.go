@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
-	ptr "github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/internal/service"
 	"github.com/GintGld/fizteh-radio/internal/storage"
@@ -25,6 +24,8 @@ type ScheduleStorage interface {
 	SaveSegment(ctx context.Context, segment models.Segment) (int64, error)
 	Segment(ctx context.Context, period int64) (models.Segment, error)
 	DeleteSegment(ctx context.Context, period int64) error
+	ProtectSegment(ctx context.Context, id int64) error
+	IsSegmentProtected(ctx context.Context, id int64) (bool, error)
 	ClearSchedule(ctx context.Context, stamp time.Time) error
 }
 
@@ -63,10 +64,19 @@ func (s *Schedule) ScheduleCut(ctx context.Context, start time.Time, stop time.T
 
 	log.Info(
 		"got schedule cut",
-		slog.Time("start", start),
-		slog.Time("stop", stop),
+		slog.String("start", start.Format(models.TimeFormat)),
+		slog.String("stop", stop.Format(models.TimeFormat)),
 		slog.Int("size", len(segments)),
 	)
+
+	for _, segment := range segments {
+		if isProt, err := s.schStorage.IsSegmentProtected(ctx, *segment.ID); err != nil {
+			log.Error("fialed to check segment protection", slog.Int64("id", *segment.ID), sl.Err(err))
+			return []models.Segment{}, fmt.Errorf("%s: %w", op, err)
+		} else {
+			segment.Protected = isProt
+		}
+	}
 
 	return segments, nil
 }
@@ -83,17 +93,36 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 
 	log.Info("validating media", slog.Int64("id", *segment.MediaID))
 
-	if media, err := s.mediaStorage.Media(ctx, *segment.MediaID); err != nil {
+	media, err := s.mediaStorage.Media(ctx, *segment.MediaID)
+
+	if err != nil {
 		if errors.Is(err, storage.ErrMediaNotFound) {
 			log.Warn("media not found", slog.Int64("id", *segment.MediaID))
 			return 0, service.ErrMediaNotFound
 		}
 		log.Error("failed to get media", slog.Int64("id", *segment.MediaID), sl.Err(err))
 		return 0, fmt.Errorf("%s: %w", op, err)
-	} else {
-		// TODO: it is temporary fix, remove it later
-		segment.BeginCut = ptr.Ptr(time.Duration(0))
-		segment.StopCut = ptr.Ptr(*media.Duration)
+	}
+
+	// Check cut correctness
+	if *media.Duration < *segment.StopCut ||
+		*media.Duration < *segment.BeginCut ||
+		*segment.BeginCut < 0 ||
+		*segment.StopCut < 0 {
+		log.Warn(
+			"invalid cut (out of bounds)",
+			slog.Int64("beginCut", segment.BeginCut.Microseconds()),
+			slog.Int64("stopCut", segment.StopCut.Microseconds()),
+		)
+		return 0, service.ErrCutOutOfBounds
+	}
+	if *segment.BeginCut > *segment.StopCut {
+		log.Warn(
+			"invalid cut (start after stop)",
+			slog.Int64("beginCut", segment.BeginCut.Microseconds()),
+			slog.Int64("stopCut", segment.StopCut.Microseconds()),
+		)
+		return 0, service.ErrBeginAfterStop
 	}
 
 	log.Info("media is valid", slog.Int64("id", *segment.MediaID))
@@ -110,10 +139,18 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 		"registered segment",
 		slog.Int64("id", id),
 		slog.Int64("mediaID", *segment.MediaID),
-		slog.String("start", segment.Start.String()),
+		slog.String("start", segment.Start.Format(models.TimeFormat)),
 		slog.Float64("begin cut", segment.BeginCut.Seconds()),
 		slog.Float64("stop cut", segment.StopCut.Seconds()),
 	)
+
+	if segment.Protected {
+		if err := s.schStorage.ProtectSegment(ctx, id); err != nil {
+			log.Error("failed to set segment protection", sl.Err(err))
+			return 0, fmt.Errorf("%s: %w", op, err)
+		}
+		log.Info("protected segment", slog.Int64("id", id))
+	}
 
 	return id, nil
 }
@@ -143,10 +180,18 @@ func (s *Schedule) Segment(ctx context.Context, id int64) (models.Segment, error
 		"got segment",
 		slog.Int64("id", id),
 		slog.Int64("mediaID", *segment.MediaID),
-		slog.Time("start", *segment.Start),
+		slog.String("start", segment.Start.Format(models.TimeFormat)),
 		slog.Float64("beginCut", segment.BeginCut.Seconds()),
 		slog.Float64("stopCut", segment.StopCut.Seconds()),
 	)
+
+	isProt, err := s.schStorage.IsSegmentProtected(ctx, id)
+	if err != nil {
+		log.Error("failed to check segment protection", slog.Int64("id", id), sl.Err(err))
+		return models.Segment{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	segment.Protected = isProt
 
 	return segment, nil
 }
@@ -192,7 +237,7 @@ func (s *Schedule) ClearSchedule(ctx context.Context, from time.Time) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	log.Info("cleared schedule", slog.Time("from", from))
+	log.Info("cleared schedule", slog.String("from", from.Format(models.TimeFormat)))
 
 	return nil
 }
