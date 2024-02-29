@@ -22,7 +22,7 @@ func (s *Storage) AllMedia(ctx context.Context, limit, offset int) ([]models.Med
 	const op = "storage.sqlite.MediaSearch"
 
 	stmt, err := s.db.PrepareContext(ctx, `
-		SELECT id, name, author, duration
+		SELECT id, name, author, duration, source_id
 		FROM library
 		LIMIT ? OFFSET ?
 	`)
@@ -38,18 +38,19 @@ func (s *Storage) AllMedia(ctx context.Context, limit, offset int) ([]models.Med
 	res := make([]models.Media, 0, limit)
 
 	var (
-		id           int64
+		id, sourceID int64
 		name, author string
 		durationMs   int64
 	)
 
 	for rows.Next() {
-		if err = rows.Scan(&id, &name, &author, &durationMs); err != nil {
+		if err = rows.Scan(&id, &name, &author, &durationMs, &sourceID); err != nil {
 			return []models.Media{}, fmt.Errorf("%s: %w", op, err)
 		}
 
 		res = append(res, models.Media{
 			ID:       ptr.Ptr(id),
+			SourceID: ptr.Ptr(sourceID),
 			Name:     ptr.Ptr(name),
 			Author:   ptr.Ptr(author),
 			Duration: ptr.Ptr(time.Duration(durationMs) * time.Microsecond),

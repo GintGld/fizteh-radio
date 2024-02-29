@@ -102,7 +102,6 @@ main_loop:
 		}
 		// Add media tags
 		for _, media := range newSlice {
-			// Get media tags
 			media.Tags, err = l.mediaStorage.MediaTags(ctx, *media.ID)
 			if err != nil {
 				log.Error("failed to get media tag list", slog.Int64("id", *media.ID), sl.Err(err))
@@ -112,12 +111,16 @@ main_loop:
 		// Apply filter
 		merge := filterRank(newSlice, filter)
 		// Merge new slice with previous one
-		bestRes = mergeLibs(bestRes, merge)[:l.maxAnswerLength]
+		bestRes = mergeLibs(bestRes, merge)
+
+		if len(bestRes) > filter.MaxRespLen && filter.MaxRespLen > 0 {
+			bestRes = bestRes[:filter.MaxRespLen:filter.MaxRespLen]
+		}
 
 		// Shortcut for tag filter only
 		if filter.Name == "" &&
 			filter.Author == "" &&
-			len(bestRes) == l.maxAnswerLength {
+			len(bestRes) == filter.MaxRespLen {
 			break main_loop
 		}
 	}
