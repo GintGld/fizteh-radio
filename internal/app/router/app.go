@@ -5,9 +5,11 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/GintGld/fizteh-radio/internal/storage/sqlite"
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/GintGld/fizteh-radio/internal/models"
+	"github.com/GintGld/fizteh-radio/internal/storage/sqlite"
 
 	authSrv "github.com/GintGld/fizteh-radio/internal/service/auth"
 	contentSrv "github.com/GintGld/fizteh-radio/internal/service/content"
@@ -63,6 +65,9 @@ func New(
 	if err != nil {
 		panic("invalid root password")
 	}
+
+	sch2dashChan := make(chan models.Segment)
+
 	// Authentication service
 	auth := authSrv.New(
 		log,
@@ -94,6 +99,7 @@ func New(
 		log,
 		storage,
 		storage,
+		sch2dashChan,
 	)
 	// Dash manifest service
 	man := manSrv.New(
@@ -122,6 +128,7 @@ func New(
 		man,
 		content,
 		sch,
+		sch2dashChan,
 	)
 
 	// Controller helper

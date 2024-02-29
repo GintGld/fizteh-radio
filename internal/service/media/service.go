@@ -275,8 +275,14 @@ func (l *Media) UpdateMedia(ctx context.Context, media models.Media) error {
 		}
 	}
 
-	l.mediaStorage.TagMedia(ctx, *media.ID, tagsToAdd...)
-	l.mediaStorage.UntagMedia(ctx, *media.ID, tagsToDel...)
+	if err := l.mediaStorage.TagMedia(ctx, *media.ID, tagsToAdd...); err != nil {
+		log.Error("failed to tag media")
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	if err := l.mediaStorage.UntagMedia(ctx, *media.ID, tagsToDel...); err != nil {
+		log.Error("failed to untag media")
+		return fmt.Errorf("%s: %w", op, err)
+	}
 
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
+	chans "github.com/GintGld/fizteh-radio/internal/lib/utils/channels"
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/internal/service"
 	"github.com/GintGld/fizteh-radio/internal/storage"
@@ -17,6 +18,8 @@ type Schedule struct {
 	log          *slog.Logger
 	schStorage   ScheduleStorage
 	mediaStorage MediaStorage
+
+	allSegmentsChan chan<- models.Segment
 }
 
 type ScheduleStorage interface {
@@ -37,11 +40,13 @@ func New(
 	log *slog.Logger,
 	schStorage ScheduleStorage,
 	mediaStorage MediaStorage,
+	allSegmentsChan chan<- models.Segment,
 ) *Schedule {
 	return &Schedule{
-		log:          log,
-		schStorage:   schStorage,
-		mediaStorage: mediaStorage,
+		log:             log,
+		schStorage:      schStorage,
+		mediaStorage:    mediaStorage,
+		allSegmentsChan: allSegmentsChan,
 	}
 }
 
@@ -82,7 +87,7 @@ func (s *Schedule) ScheduleCut(ctx context.Context, start time.Time, stop time.T
 }
 
 // NewSegment registers new segment in schedule
-// if media for segment does not exists returns error
+// if media for segment does not exists returns error.
 func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int64, error) {
 	const op = "Schedule.NewSegment"
 
@@ -152,6 +157,8 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 		log.Info("protected segment", slog.Int64("id", id))
 	}
 
+	chans.Notify(s.allSegmentsChan, segment)
+
 	return id, nil
 }
 
@@ -196,7 +203,7 @@ func (s *Schedule) Segment(ctx context.Context, id int64) (models.Segment, error
 	return segment, nil
 }
 
-// DeleteSegment deletes segment by id
+// DeleteSegment deletes segment by id.
 func (s *Schedule) DeleteSegment(ctx context.Context, id int64) error {
 	const op = "Schedule.DeleteSegment"
 

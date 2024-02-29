@@ -21,7 +21,7 @@ type Dash struct {
 	schedule   Schedule
 
 	// notify to update
-	notifyChan chan struct{}
+	notifyChan <-chan models.Segment
 	// stop
 	stopChan chan struct{}
 }
@@ -34,6 +34,7 @@ func New(
 	manifest Manifest,
 	content Content,
 	schedule Schedule,
+	notifyChan <-chan models.Segment,
 ) *Dash {
 	return &Dash{
 		log:        log,
@@ -42,7 +43,7 @@ func New(
 		manifest:   manifest,
 		content:    content,
 		schedule:   schedule,
-		notifyChan: make(chan struct{}, 1),
+		notifyChan: notifyChan,
 		stopChan:   make(chan struct{}),
 	}
 }
@@ -131,31 +132,41 @@ mainloop:
 			log.Debug("cleared cache")
 		}
 
+		timer := time.After(d.updateFreq)
+
+	select_case:
 		select {
-		case <-d.notifyChan:
+		case segm := <-d.notifyChan:
 			log.Debug("got notify chan")
+			start := *segm.Start
+			stop := segm.Start.Add(*segm.StopCut - *segm.BeginCut)
+			now := time.Now()
+			hor := now.Add(d.horizon)
+			if start.After(now) && start.Before(hor) || stop.After(now) && stop.Before(hor) {
+				log.Debug(
+					"segment is in horizon",
+					slog.String("now", now.Format(models.TimeFormat)),
+					slog.String("start", start.Format(models.TimeFormat)),
+					slog.String("stop", stop.Format(models.TimeFormat)),
+				)
+			} else {
+				log.Debug("segment is not in horizon")
+				goto select_case
+			}
 		case <-d.stopChan:
 			log.Debug("got stop chan")
+			break mainloop
 		case <-ctx.Done():
 			log.Debug("got context stop")
 			break mainloop
-		case <-time.After(d.updateFreq):
+		case <-timer:
 			log.Debug("timer tick")
-			break mainloop
 		}
 	}
 
 	d.log.Info("stopped dash")
 
 	return nil
-}
-
-// TODO: use notify chan
-
-// Notify notifies dash to
-// unscheduled updating
-func (d *Dash) Notify() {
-	d.notifyChan <- struct{}{}
 }
 
 // Stop stops dash
