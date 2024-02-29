@@ -206,7 +206,7 @@ func (s *Storage) IsSegmentProtected(ctx context.Context, id int64) (bool, error
 
 	var res int8
 
-	if row.Scan(&res); err != nil {
+	if err := row.Scan(&res); err != nil {
 		return false, fmt.Errorf("%s: %w", op, err)
 	}
 
