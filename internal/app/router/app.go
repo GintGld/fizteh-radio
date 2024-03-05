@@ -12,6 +12,7 @@ import (
 	"github.com/GintGld/fizteh-radio/internal/storage/sqlite"
 
 	authSrv "github.com/GintGld/fizteh-radio/internal/service/auth"
+	djSrv "github.com/GintGld/fizteh-radio/internal/service/autodj"
 	contentSrv "github.com/GintGld/fizteh-radio/internal/service/content"
 	dashSrv "github.com/GintGld/fizteh-radio/internal/service/dash"
 	jwtSrv "github.com/GintGld/fizteh-radio/internal/service/jwt"
@@ -67,6 +68,8 @@ func New(
 	}
 
 	sch2dashChan := make(chan models.Segment)
+	sch2djChan := make(chan struct{})
+	lib2djChan := make(chan struct{})
 
 	// Authentication service
 	auth := authSrv.New(
@@ -86,6 +89,7 @@ func New(
 		log,
 		storage,
 		maxAnswerLength,
+		lib2djChan,
 	)
 	// Source library service
 	src := srcSrv.New(
@@ -100,6 +104,7 @@ func New(
 		storage,
 		storage,
 		sch2dashChan,
+		sch2djChan,
 	)
 	// Dash manifest service
 	man := manSrv.New(
@@ -130,6 +135,14 @@ func New(
 		sch,
 		sch2dashChan,
 	)
+	// AutoDJ
+	dj := djSrv.New(
+		log,
+		lib,
+		sch,
+		sch2djChan,
+		lib2djChan,
+	)
 
 	// Controller helper
 	jwtCtr := jwtCtr.New(secret)
@@ -145,7 +158,7 @@ func New(
 	app.Mount("/login", authCtr.New(auth))
 	app.Mount("/root", rootCtr.New(root, jwtCtr))
 	app.Mount("/library", mediaCtr.New(lib, src, jwtCtr, tmpDir))
-	app.Mount("/schedule", schCtr.New(sch, jwtCtr))
+	app.Mount("/schedule", schCtr.New(sch, dj, jwtCtr))
 	app.Mount("/radio", dashCtr.New(manPath, contentDir, jwtCtr, dash))
 
 	// In debug mode there's no proxy that serves static files.

@@ -602,6 +602,55 @@ paths:
                       - 'segment not found'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /admin/schedule/dj/config:
+    get:
+      description: Get auto dj config.
+      tags:
+        - 'Schedule'
+      security:
+        - editorAuth: []
+      responses:
+        '200':
+          description: Got config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutoDJConfig'
+    post:
+      description: Update auto dj config.
+      tags:
+        - 'Schedule'
+      security:
+        - editorAuth: []
+      requestBody: 
+        description: Config.
+        content: 
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutoDJConfig'
+      responses:
+        '200':
+          description: Updated
+  /admin/schedule/dj/start:
+    get:
+      tags:
+        - Schedule
+      security:
+        - rootAuth: []
+      description: Start auto dj.
+      responses:
+        '200':
+          description: Started auto dj.
+  /admin/schedule/dj/stop:
+    get:
+      tags:
+        - Schedule
+      security:
+        - rootAuth: []
+      description: Stopped auto dj.
+      responses:
+        '200':
+          description: Stopped auto dj.
   /man.mpd:
     get:
       description: |-
@@ -790,6 +839,18 @@ components:
       type: array
       items:
         $ref: '#/components/schemas/Segment'
+    AutoDJConfig:
+      type: object
+      properties:
+        Tags:
+          $ref: '#/components/schemas/TagList'
+        Stub:
+          type: object
+          properties:
+            Threshold:
+              type: integer
+            MediaID:
+              type: integer
 
   responses: 
     InternalServerError:

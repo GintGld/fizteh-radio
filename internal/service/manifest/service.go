@@ -100,7 +100,7 @@ func (m *Manifest) SetSchedule(_ context.Context, schedule []models.Segment) err
 	for i, segment := range schedule {
 		// Handle segment intersection.
 		// That's no guarantee that client
-		// won't play rameined chunks.
+		// won't play remained chunks.
 		// Music stream may be raggy,
 		// but nor server nor client won't crash.
 		if i < len(schedule)-1 {

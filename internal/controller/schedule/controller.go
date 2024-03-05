@@ -15,6 +15,7 @@ import (
 
 type scheduleController struct {
 	schSrv Schedule
+	dj     DJ
 }
 
 type Schedule interface {
@@ -25,12 +26,21 @@ type Schedule interface {
 	ClearSchedule(ctx context.Context, from time.Time) error
 }
 
+type DJ interface {
+	SetConfig(conf models.AutoDJConfig)
+	Config() models.AutoDJConfig
+	Run(ctx context.Context) error
+	Stop()
+}
+
 func New(
 	schSrv Schedule,
+	dj DJ,
 	jwtC *jwtController.JWT,
 ) *fiber.App {
 	schCtr := scheduleController{
 		schSrv: schSrv,
+		dj:     dj,
 	}
 
 	app := fiber.New()
@@ -43,10 +53,13 @@ func New(
 	app.Delete("/:id", schCtr.deleteSegment)
 	app.Delete("/", schCtr.clearSchedule)
 
+	app.Get("/dj/config", schCtr.getDJConfig)
+	app.Post("/dj/config", schCtr.setDJConfig)
+	app.Get("/dj/start", schCtr.startDJ)
+	app.Get("/dj/stop", schCtr.stopDJ)
+
 	return app
 }
-
-// TODO: move media validation from service to controller
 
 // scheduleCut returns segments intersecting given interval
 // if
@@ -195,6 +208,43 @@ func (schCtr *scheduleController) clearSchedule(c *fiber.Ctx) error {
 	if err := schCtr.schSrv.ClearSchedule(context.TODO(), from); err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
+
+	return c.SendStatus(fiber.StatusOK)
+}
+
+// getDJConfig returns autodj config.
+func (schCtr *scheduleController) getDJConfig(c *fiber.Ctx) error {
+	conf := schCtr.dj.Config()
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"config": conf,
+	})
+}
+
+// setDJConfig updates autodj config.
+func (schCtr *scheduleController) setDJConfig(c *fiber.Ctx) error {
+	var request struct {
+		Conf models.AutoDJConfig `json:"config"`
+	}
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	schCtr.dj.SetConfig(request.Conf)
+
+	return c.SendStatus(fiber.StatusOK)
+}
+
+// startDJ start autodj.
+func (schCtr *scheduleController) startDJ(c *fiber.Ctx) error {
+	go schCtr.dj.Run(context.TODO())
+
+	return c.SendStatus(fiber.StatusOK)
+}
+
+// stopDJ stops autodj.
+func (schCtr *scheduleController) stopDJ(c *fiber.Ctx) error {
+	go schCtr.dj.Stop()
 
 	return c.SendStatus(fiber.StatusOK)
 }

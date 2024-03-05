@@ -19,7 +19,8 @@ type Schedule struct {
 	schStorage   ScheduleStorage
 	mediaStorage MediaStorage
 
-	allSegmentsChan chan<- models.Segment
+	allSegmentsChan       chan<- models.Segment
+	protectedSegmentsChan chan<- struct{}
 }
 
 type ScheduleStorage interface {
@@ -41,12 +42,14 @@ func New(
 	schStorage ScheduleStorage,
 	mediaStorage MediaStorage,
 	allSegmentsChan chan<- models.Segment,
+	protectedSegmentsChan chan<- struct{},
 ) *Schedule {
 	return &Schedule{
-		log:             log,
-		schStorage:      schStorage,
-		mediaStorage:    mediaStorage,
-		allSegmentsChan: allSegmentsChan,
+		log:                   log,
+		schStorage:            schStorage,
+		mediaStorage:          mediaStorage,
+		allSegmentsChan:       allSegmentsChan,
+		protectedSegmentsChan: protectedSegmentsChan,
 	}
 }
 
@@ -155,9 +158,11 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 			return 0, fmt.Errorf("%s: %w", op, err)
 		}
 		log.Info("protected segment", slog.Int64("id", id))
+
+		chans.Notify(s.protectedSegmentsChan)
 	}
 
-	chans.Notify(s.allSegmentsChan, segment)
+	chans.Send(s.allSegmentsChan, segment)
 
 	return id, nil
 }
@@ -214,6 +219,16 @@ func (s *Schedule) DeleteSegment(ctx context.Context, id int64) error {
 
 	log.Info("deleting segment", slog.Int64("id", id))
 
+	isProt, err := s.schStorage.IsSegmentProtected(ctx, id)
+	if err != nil {
+		if errors.Is(err, storage.ErrSegmentNotFound) {
+			log.Warn("segment not found", slog.Int64("id", id))
+			return service.ErrSegmentNotFound
+		}
+		log.Error("failed to check is segment protected")
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
 	if err := s.schStorage.DeleteSegment(ctx, id); err != nil {
 		if errors.Is(err, storage.ErrSegmentNotFound) {
 			log.Warn("segment not found", slog.Int64("id", id))
@@ -224,6 +239,10 @@ func (s *Schedule) DeleteSegment(ctx context.Context, id int64) error {
 	}
 
 	log.Info("deleted segment", slog.Int64("id", id))
+
+	if isProt {
+		chans.Notify(s.protectedSegmentsChan)
+	}
 
 	return nil
 }

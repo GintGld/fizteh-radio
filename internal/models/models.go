@@ -74,6 +74,16 @@ type Segment struct {
 	Protected bool           `json:"protected"`
 }
 
+type AutoDJConfig struct {
+	Tags TagList    `json:"tags"`
+	Stub AutoDJStub `json:"stub"`
+}
+
+type AutoDJStub struct {
+	Threshold time.Duration `json:"threshold"`
+	MediaID   int64         `json:"mediaId"`
+}
+
 // specify custom time marshalling since
 // time package is not stable.
 const TimeFormat = "2006-01-02T15:04:05.999999999-07:00"

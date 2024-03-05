@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
@@ -24,6 +25,8 @@ type Dash struct {
 	notifyChan <-chan models.Segment
 	// stop
 	stopChan chan struct{}
+
+	runMutex sync.Mutex
 }
 
 // New returns new dash manager
@@ -78,10 +81,17 @@ func (d *Dash) Run(ctx context.Context) error {
 		slog.String("op", op),
 	)
 
+	// mutex to prevent multiple
+	// run call.
+	if !d.runMutex.TryLock() {
+		return nil
+	}
+	defer d.runMutex.Unlock()
+
 	log.Info("start dash")
 
-	// Before loop starts, the directory will
-	// be clean from previous files.
+	// Before loop starts, working directories will
+	// be cleaned from previous files.
 	d.content.CleanUp()
 	d.manifest.CleanUp()
 

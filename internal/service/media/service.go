@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
+	chans "github.com/GintGld/fizteh-radio/internal/lib/utils/channels"
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/internal/service"
 	"github.com/GintGld/fizteh-radio/internal/storage"
@@ -18,6 +19,8 @@ type Media struct {
 	mediaStorage    MediaStorage
 	tagTypes        models.TagTypes
 	maxAnswerLength int
+
+	updateChan chan<- struct{}
 }
 
 type MediaStorage interface {
@@ -41,6 +44,7 @@ func New(
 	log *slog.Logger,
 	mediaStorage MediaStorage,
 	maxAnswerLength int,
+	updateChan chan<- struct{},
 ) *Media {
 	const op = "Media.New"
 
@@ -60,11 +64,11 @@ func New(
 		mediaStorage:    mediaStorage,
 		tagTypes:        tagTypes,
 		maxAnswerLength: maxAnswerLength,
+		updateChan:      updateChan,
 	}
 }
 
 // TODO: in logging save editor name (put in context)
-// TODO: autodj
 
 func (l *Media) SearchMedia(ctx context.Context, filter models.MediaFilter) ([]models.Media, error) {
 	const op = "Media.SearchMedia"
@@ -210,6 +214,8 @@ func (l *Media) NewMedia(ctx context.Context, media models.Media) (int64, error)
 		slog.Int64("sourceID", *media.SourceID),
 	)
 
+	chans.Notify(l.updateChan)
+
 	return id, nil
 }
 
@@ -284,6 +290,8 @@ func (l *Media) UpdateMedia(ctx context.Context, media models.Media) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
+	chans.Notify(l.updateChan)
+
 	return nil
 }
 
@@ -309,6 +317,8 @@ func (l *Media) MultiTagMedia(ctx context.Context, tag models.Tag, mediaIds ...i
 		log.Error("failed to tag media list", slog.Int64("tag id", tag.ID), sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
+
+	chans.Notify(l.updateChan)
 
 	return nil
 }
@@ -362,6 +372,8 @@ func (l *Media) DeleteMedia(ctx context.Context, id int64) error {
 		log.Error("failed to delete media", slog.Int64("id", id))
 		return fmt.Errorf("%s: %w", op, err)
 	}
+
+	chans.Notify(l.updateChan)
 
 	return nil
 }
@@ -480,6 +492,7 @@ func (l *Media) Tag(ctx context.Context, id int64) (models.Tag, error) {
 	return models.Tag{}, service.ErrTagTypeNotFound
 }
 
+// DeleteTag deletes tag by its id.
 func (l *Media) DeleteTag(ctx context.Context, id int64) error {
 	const op = "Media.DeleteTag"
 

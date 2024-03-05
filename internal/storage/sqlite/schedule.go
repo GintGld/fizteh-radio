@@ -19,8 +19,6 @@ import (
 // It is motivated by dash precision.
 */
 
-// TODO: SaveSegment should take segmetns ...models.Segment
-
 // ScheduelCut returns all segments intersecting given interval.
 func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Time) ([]models.Segment, error) {
 	const op = "storage.sqlite.ScheduleCut"
@@ -34,6 +32,7 @@ func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Ti
 			OR
 			start_mus + (stop_cut - begin_cut) BETWEEN $1 AND $2
 		)
+		ORDER BY start_mus
 	`)
 	if err != nil {
 		return []models.Segment{}, fmt.Errorf("%s: %w", op, err)
