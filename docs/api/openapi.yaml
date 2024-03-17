@@ -790,6 +790,8 @@ components:
         duration:
           type: integer
           example: 100
+        tags:
+          $ref: '#/components/schemas/TagList'
     MediaArray:
       type: array
       items:
