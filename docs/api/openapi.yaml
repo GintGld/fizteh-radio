@@ -636,17 +636,34 @@ paths:
       tags:
         - Schedule
       security:
-        - rootAuth: []
+        - editorAuth: []
       description: Start auto dj.
       responses:
         '200':
           description: Started auto dj.
+  /admin/scheeuld/dj/status:
+    get:
+      tags:
+        - Schedule
+      security:
+        - editorAuth: []
+      description: If autodj is playing now.
+      responses:
+        '200':
+          description: result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  isPlaying:
+                    type: boolean
   /admin/schedule/dj/stop:
     get:
       tags:
         - Schedule
       security:
-        - rootAuth: []
+        - editorAuth: []
       description: Stopped auto dj.
       responses:
         '200':
@@ -755,6 +772,9 @@ components:
         id:
           type: integer
           example: 1
+        name:
+          type: string
+          example: rock
         type:
           $ref: '#/components/schemas/TagType'
     TagList:

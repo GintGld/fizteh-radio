@@ -490,6 +490,15 @@ func (a *AutoDJ) nearestProtectedSegment() int64 {
 	return -1
 }
 
+// IsPlaying returns autodj status.
+func (a *AutoDJ) IsPlaying() bool {
+	if a.runMutex.TryLock() {
+		a.runMutex.Unlock()
+		return false
+	}
+	return true
+}
+
 func (a *AutoDJ) Stop() {
 	chans.Notify(a.stopChan)
 }

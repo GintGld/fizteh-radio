@@ -30,6 +30,7 @@ type DJ interface {
 	SetConfig(conf models.AutoDJConfig)
 	Config() models.AutoDJConfig
 	Run(ctx context.Context) error
+	IsPlaying() bool
 	Stop()
 }
 
@@ -56,6 +57,7 @@ func New(
 	app.Get("/dj/config", schCtr.getDJConfig)
 	app.Post("/dj/config", schCtr.setDJConfig)
 	app.Get("/dj/start", schCtr.startDJ)
+	app.Get("dj/status", schCtr.isPlaying)
 	app.Get("/dj/stop", schCtr.stopDJ)
 
 	return app
@@ -240,6 +242,14 @@ func (schCtr *scheduleController) startDJ(c *fiber.Ctx) error {
 	go schCtr.dj.Run(context.TODO())
 
 	return c.SendStatus(fiber.StatusOK)
+}
+
+// isPlaying returns autodj status.
+func (schCtr *scheduleController) isPlaying(c *fiber.Ctx) error {
+	isPlaying := schCtr.dj.IsPlaying()
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"playing": isPlaying,
+	})
 }
 
 // stopDJ stops autodj.
