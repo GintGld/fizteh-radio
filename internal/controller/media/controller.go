@@ -414,11 +414,6 @@ func (mediaCtr *mediaController) newTag(c *fiber.Ctx) error {
 			"error": "tag name can't be empty",
 		})
 	}
-	if request.Tag.Type.ID == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "tag type id can't be empty",
-		})
-	}
 
 	id, err := mediaCtr.srvMedia.SaveTag(context.TODO(), request.Tag)
 	if err != nil {
