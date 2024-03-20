@@ -194,10 +194,29 @@ func (l *Media) NewMedia(ctx context.Context, media models.Media) (int64, error)
 
 	tags, _ := l.mediaStorage.AllTags(ctx)
 
-	for _, tag := range media.Tags {
-		if !slices.Contains(tags, tag) {
-			log.Warn("tag not found", slog.Int64("id", tag.ID))
-			return 0, service.ErrTagNotFound
+	// Recover tag ids
+	// or create new tag if not exists.
+	for i, tag := range media.Tags {
+		if j := slices.IndexFunc(tags, func(t models.Tag) bool {
+			return t.Name == tag.Name
+		}); j != -1 {
+			media.Tags[i].ID = tags[j].ID
+		} else {
+			log.Info(
+				"tag not found, create it",
+				slog.String("tag name", tag.Name),
+			)
+
+			tagId, err := l.SaveTag(ctx, tag)
+			if err != nil {
+				log.Error(
+					"failed to save new tag",
+					slog.String("tag name", tag.Name),
+					sl.Err(err),
+				)
+				return 0, fmt.Errorf("%s: %w", op, err)
+			}
+			media.Tags[i].ID = tagId
 		}
 	}
 
