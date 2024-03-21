@@ -85,10 +85,15 @@ type Source interface {
 // searchMedia returns media list filtered and sorted
 // by query criteria.
 func (mediaCtr *mediaController) searchMedia(c *fiber.Ctx) error {
+	var tags []string
+	if s := c.Query("tags"); s != "" {
+		tags = strings.Split(c.Query("tags"), ",")
+	}
+
 	filter := models.MediaFilter{
 		Name:       c.Query("name"),
 		Author:     c.Query("author"),
-		Tags:       strings.Split(c.Query("tags"), ","),
+		Tags:       tags,
 		MaxRespLen: c.QueryInt("res_len"),
 	}
 
