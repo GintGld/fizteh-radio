@@ -50,5 +50,5 @@ jobs:
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
           'cd ${{ env.DEPLOY_DIR }} && \
           sudo docker compose --env-file ${{ env.COMPOSE_ENV }} stop && \
-          sudo docker image rm gingld/fizteh-radio && \
+          sudo docker image rm -f gingld/fizteh-radio && \
           sudo docker compose --env-file ${{ env.COMPOSE_ENV }} up -d'
