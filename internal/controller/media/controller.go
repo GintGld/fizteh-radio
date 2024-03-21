@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/gofiber/fiber/v2"
@@ -84,12 +85,11 @@ type Source interface {
 // searchMedia returns media list filtered and sorted
 // by query criteria.
 func (mediaCtr *mediaController) searchMedia(c *fiber.Ctx) error {
-	var filter models.MediaFilter
-
-	if err := c.QueryParser(&filter); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "invalid query",
-		})
+	filter := models.MediaFilter{
+		Name:       c.Query("name"),
+		Author:     c.Query("author"),
+		Tags:       strings.Split(c.Query("tags"), ","),
+		MaxRespLen: c.QueryInt("res_len"),
 	}
 
 	lib, err := mediaCtr.srvMedia.SearchMedia(context.TODO(), filter)

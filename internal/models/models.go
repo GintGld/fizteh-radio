@@ -45,10 +45,10 @@ type Media struct {
 }
 
 type MediaFilter struct {
-	Name       string   `query:"name"`
-	Author     string   `query:"author"`
-	Tags       []string `query:"tags"`
-	MaxRespLen int      `query:"res_len"`
+	Name       string
+	Author     string
+	Tags       []string
+	MaxRespLen int
 }
 
 type TagTypes []TagType
