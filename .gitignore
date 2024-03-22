@@ -1,6 +1,7 @@
 demo/tmp/*
 !demo/tmp/index.html
 
+config/local.yaml
 go.work*
 *.sqlite
 .local

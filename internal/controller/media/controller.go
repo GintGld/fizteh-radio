@@ -422,6 +422,11 @@ func (mediaCtr *mediaController) newTag(c *fiber.Ctx) error {
 
 	id, err := mediaCtr.srvMedia.SaveTag(context.TODO(), request.Tag)
 	if err != nil {
+		if errors.Is(err, service.ErrTagTypeNotFound) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "tag type not found",
+			})
+		}
 		if errors.Is(err, service.ErrTagExists) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "tag already exists",
