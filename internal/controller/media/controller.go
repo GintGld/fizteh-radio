@@ -36,6 +36,7 @@ func New(
 
 	app.Use(jwtC.AuthRequired())
 
+	// Media
 	app.Get("/media", mediaCtr.searchMedia)
 	app.Post("/media", mediaCtr.newMedia)
 	app.Put("/media", mediaCtr.updateMedia)
@@ -43,11 +44,17 @@ func New(
 	app.Get("/source/:id", mediaCtr.source)
 	app.Delete("/media/:id", mediaCtr.deleteMedia)
 
+	// Tags
 	app.Get("/tag/types", mediaCtr.tagTypes)
 	app.Get("/tag", mediaCtr.allTags)
 	app.Post("/tag", mediaCtr.newTag)
 	app.Delete("/tag/:id", mediaCtr.deleteTag)
 	app.Post("/tag/multi/:id", mediaCtr.multiTag)
+
+	// Tag meta
+	app.Post("/tag/meta", mediaCtr.newTagMeta)
+	app.Get("/tag/meta/:id", mediaCtr.tagMeta)
+	app.Delete("/tag/meta/:id", mediaCtr.delTagMeta)
 
 	return app
 }
@@ -59,17 +66,25 @@ type mediaController struct {
 }
 
 type Media interface {
+	// Media
 	SearchMedia(ctx context.Context, filter models.MediaFilter) ([]models.Media, error)
 	NewMedia(ctx context.Context, media models.Media) (int64, error)
 	UpdateMedia(ctx context.Context, media models.Media) error
 	MultiTagMedia(ctx context.Context, tag models.Tag, mediaIds ...int64) error
 	Media(ctx context.Context, id int64) (models.Media, error)
 	DeleteMedia(ctx context.Context, id int64) error
+
+	// Tags
 	TagTypes(ctx context.Context) (models.TagTypes, error)
 	AllTags(ctx context.Context) (models.TagList, error)
 	SaveTag(ctx context.Context, tag models.Tag) (int64, error)
 	Tag(ctx context.Context, id int64) (models.Tag, error)
 	DeleteTag(ctx context.Context, id int64) error
+
+	// Tag meta information
+	NewTagMeta(ctx context.Context, meta models.TagMeta) error
+	TagMeta(ctx context.Context, tag models.Tag) ([]models.TagMeta, error)
+	DelTagMeta(ctx context.Context, tag models.Tag) error
 }
 
 type Source interface {
@@ -455,6 +470,69 @@ func (mediaCtr *mediaController) deleteTag(c *fiber.Ctx) error {
 				"error": "tag not found",
 			})
 		}
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	return c.SendStatus(fiber.StatusOK)
+}
+
+// newTagMeta
+func (mediaCtr *mediaController) newTagMeta(c *fiber.Ctx) error {
+	var request struct {
+		Meta models.TagMeta `json:"meta"`
+	}
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	if request.Meta.Key == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "meta key can't be empty",
+		})
+	}
+
+	if err := mediaCtr.srvMedia.NewTagMeta(context.TODO(), request.Meta); err != nil {
+		if errors.Is(err, service.ErrTagNotFound) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "tag not exists",
+			})
+		}
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	return c.SendStatus(fiber.StatusOK)
+}
+
+// tagMeta returns tagMeta
+func (mediaCtr *mediaController) tagMeta(c *fiber.Ctx) error {
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "bad id",
+		})
+	}
+
+	res, err := mediaCtr.srvMedia.TagMeta(context.TODO(), models.Tag{ID: id})
+	if err != nil {
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"meta": res,
+	})
+}
+
+// delTagMeta deletes all tag meta
+func (mediaCtr *mediaController) delTagMeta(c *fiber.Ctx) error {
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "bad id",
+		})
+	}
+
+	if err := mediaCtr.srvMedia.DelTagMeta(context.TODO(), models.Tag{ID: id}); err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 

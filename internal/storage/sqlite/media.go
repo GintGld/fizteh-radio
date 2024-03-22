@@ -530,3 +530,70 @@ func (s *Storage) UntagMedia(ctx context.Context, mediaId int64, tags ...models.
 
 	return nil
 }
+
+func (s *Storage) SetTagMeta(ctx context.Context, meta models.TagMeta) error {
+	const op = "Storage.NewTagMeta"
+
+	stmt, err := s.db.PrepareContext(ctx, "REPLACE INTO tagMeta(tag_id, key, value) VALUES(?, ?, ?)")
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	res, err := stmt.ExecContext(ctx, meta.TagID, meta.Key, meta.Val)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if _, err := res.LastInsertId(); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
+func (s *Storage) TagMeta(ctx context.Context, tag models.Tag) ([]models.TagMeta, error) {
+	const op = "Storage.GetTagMedia"
+
+	stmt, err := s.db.PrepareContext(ctx, "SELECT key, value FROM tagMeta WHERE tag_id=?")
+	if err != nil {
+		return []models.TagMeta{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	row, err := stmt.QueryContext(ctx, tag.ID)
+	if err != nil {
+		return []models.TagMeta{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	meta := models.TagMeta{TagID: tag.ID}
+	metas := make([]models.TagMeta, 0)
+
+	for row.Next() {
+		if err := row.Scan(&meta.Key, &meta.Val); err != nil {
+			return []models.TagMeta{}, fmt.Errorf("%s: %w", op, err)
+		}
+		metas = append(metas, meta)
+	}
+
+	return metas, nil
+}
+
+func (s *Storage) DelTagMeta(ctx context.Context, tag models.Tag) error {
+	const op = "Storage.DelTagMeta"
+
+	stmt, err := s.db.Prepare("DELETE FROM tagMeta WHERE tag_id=?")
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	res, err := stmt.ExecContext(ctx, tag.ID)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	if _, err := res.RowsAffected(); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}

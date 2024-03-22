@@ -24,12 +24,15 @@ type Media struct {
 }
 
 type MediaStorage interface {
+	// Media
 	AllMedia(ctx context.Context, limit, offset int) ([]models.Media, error)
 	SaveMedia(ctx context.Context, newMedia models.Media) (int64, error)
 	UpdateMediaBasicInfo(ctx context.Context, media models.Media) error
 	Media(ctx context.Context, id int64) (models.Media, error)
 	MediaTags(ctx context.Context, id int64) (models.TagList, error)
 	DeleteMedia(ctx context.Context, id int64) error
+
+	// Tag managment
 	TagTypes(ctx context.Context) (models.TagTypes, error)
 	AllTags(ctx context.Context) (models.TagList, error)
 	SaveTag(ctx context.Context, tag models.Tag) (int64, error)
@@ -38,6 +41,11 @@ type MediaStorage interface {
 	TagMedia(ctx context.Context, mediaId int64, tags ...models.Tag) error
 	MultiTagMedia(ctx context.Context, tag models.Tag, mediaIds ...int64) error
 	UntagMedia(ctx context.Context, mediaId int64, tags ...models.Tag) error
+
+	// Tag meta information
+	SetTagMeta(ctx context.Context, meta models.TagMeta) error
+	TagMeta(ctx context.Context, tag models.Tag) ([]models.TagMeta, error)
+	DelTagMeta(ctx context.Context, tag models.Tag) error
 }
 
 func New(
@@ -357,7 +365,7 @@ func (l *Media) Media(ctx context.Context, id int64) (models.Media, error) {
 //
 // If media with given id does not exist, returns error.
 func (l *Media) DeleteMedia(ctx context.Context, id int64) error {
-	const op = "Media.DeleteEditor"
+	const op = "Media.DeleteMedia"
 
 	log := l.log.With(
 		slog.String("op", op),
@@ -511,6 +519,69 @@ func (l *Media) DeleteTag(ctx context.Context, id int64) error {
 			return fmt.Errorf("%s: %w", op, service.ErrTagNotFound)
 		}
 		log.Error("failed to delete media", slog.Int64("id", id))
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
+// NewTagMeta register new meta information for tag.
+func (l *Media) NewTagMeta(ctx context.Context, meta models.TagMeta) error {
+	const op = "Media.NewTagMedia"
+
+	log := l.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+		slog.Int64("tag id", meta.TagID),
+		slog.String("key", meta.Key),
+	)
+
+	if _, err := l.mediaStorage.Tag(ctx, meta.TagID); err != nil {
+		if errors.Is(err, storage.ErrTagNotFound) {
+			log.Error("tag not exists")
+			return storage.ErrTagNotFound
+		}
+		log.Error("failed to get tag", sl.Err(err))
+	}
+
+	if err := l.mediaStorage.SetTagMeta(ctx, meta); err != nil {
+		log.Error("failed to add tag meta", sl.Err(err))
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
+// TagMeta returns all meta information
+// for given tag.
+func (l *Media) TagMeta(ctx context.Context, tag models.Tag) ([]models.TagMeta, error) {
+	const op = "Media.TagMeta"
+
+	log := l.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	meta, err := l.mediaStorage.TagMeta(ctx, tag)
+	if err != nil {
+		log.Error("failed to get tag meta", sl.Err(err))
+		return []models.TagMeta{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return meta, nil
+}
+
+// DelTagMeta deletes tag meta by its key.
+func (l *Media) DelTagMeta(ctx context.Context, tag models.Tag) error {
+	const op = "Media.DelTagMeta"
+
+	log := l.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	if err := l.mediaStorage.DelTagMeta(ctx, tag); err != nil {
+		log.Error("failed to del tag meta", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
 

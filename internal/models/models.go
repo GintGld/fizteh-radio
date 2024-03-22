@@ -65,6 +65,12 @@ type TagType struct {
 	Name string `json:"name"`
 }
 
+type TagMeta struct {
+	TagID int64  `json:"tagId"`
+	Key   string `json:"key"`
+	Val   string `json:"val"`
+}
+
 type Segment struct {
 	ID        *int64         `json:"id"`
 	MediaID   *int64         `json:"mediaID"`
