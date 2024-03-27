@@ -55,9 +55,10 @@ type TagTypes []TagType
 type TagList []Tag
 
 type Tag struct {
-	ID   int64   `json:"id"`
-	Name string  `json:"name"`
-	Type TagType `json:"type"`
+	ID   int64             `json:"id"`
+	Name string            `json:"name"`
+	Type TagType           `json:"type"`
+	Meta map[string]string `json:"meta"`
 }
 
 type TagType struct {
@@ -65,10 +66,8 @@ type TagType struct {
 	Name string `json:"name"`
 }
 
-type TagMeta struct {
-	TagID int64  `json:"tagId"`
-	Key   string `json:"key"`
-	Val   string `json:"val"`
+func EqualTags(t1, t2 Tag) bool {
+	return t1.ID == t2.ID
 }
 
 type Segment struct {

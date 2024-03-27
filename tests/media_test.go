@@ -2,6 +2,8 @@ package tests
 
 import (
 	"encoding/json"
+	"fmt"
+	"math/rand"
 	"net/url"
 	"strconv"
 	"testing"
@@ -773,8 +775,60 @@ func TestAllTags(t *testing.T) {
 
 	json.Object().Keys().ContainsOnly("tags")
 	for _, value := range json.Path("$.tags").Array().Iter() {
-		value.Object().Keys().ContainsOnly("id", "name", "type")
+		value.Object().Keys().ContainsOnly("id", "name", "type", "meta")
 		value.Path("$.type").Object().Keys().ContainsOnly("id", "name")
+	}
+}
+
+func TestGetTag(t *testing.T) {
+	token, err := suite.RootLogin()
+	require.NoError(t, err)
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   cfg.Address,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	tag := randomTag()
+
+	idRaw := e.POST("/library/tag").
+		WithHeader("Authorization", "Bearer "+token).
+		WithJSON(struct {
+			Tag models.Tag `json:"tag"`
+		}{
+			Tag: tag,
+		}).
+		Expect().
+		Status(200).
+		JSON().
+		Path("$.id").
+		Number().
+		Raw()
+	id := int(idRaw)
+
+	resp := e.GET("/library/tag/{id}", id).
+		WithHeader("Authorization", "Bearer "+token).
+		Expect().
+		Status(200).
+		Body().
+		Raw()
+
+	var got struct {
+		Tag models.Tag `json:"tag"`
+	}
+	err = json.Unmarshal([]byte(resp), &got)
+	require.NoError(t, err)
+
+	fmt.Println(got.Tag)
+
+	assert.Equal(t, tag.Type.ID, got.Tag.Type.ID)
+	assert.Equal(t, tag.Name, got.Tag.Name)
+	assert.Equal(t, tag.Type.Name, got.Tag.Type.Name)
+	for k, v := range tag.Meta {
+		vGot, ok := got.Tag.Meta[k]
+		assert.True(t, ok)
+		assert.Equal(t, v, vGot)
 	}
 }
 
@@ -809,6 +863,21 @@ func TestDeleteTag(t *testing.T) {
 		WithHeader("Authorization", "Bearer "+token).
 		Expect().
 		Status(200)
+
+	resp := e.GET("/library/tag/{id}", id).
+		WithHeader("Authorization", "Bearer "+token).
+		Expect().
+		Status(400).
+		Body().
+		Raw()
+
+	var E struct {
+		Err string `json:"error"`
+	}
+	err = json.Unmarshal([]byte(resp), &E)
+	require.NoError(t, err)
+
+	assert.Equal(t, "tag not found", E.Err)
 }
 
 func TestDeleteNotExistingTag(t *testing.T) {
@@ -832,180 +901,6 @@ func TestDeleteNotExistingTag(t *testing.T) {
 	json.Path("$.error").String().IsEqualFold("tag not found")
 }
 
-func TestAddMeta(t *testing.T) {
-	token, err := suite.RootLogin()
-	require.NoError(t, err)
-
-	u := url.URL{
-		Scheme: "http",
-		Host:   cfg.Address,
-	}
-	e := httpexpect.Default(t, u.String())
-
-	idRaw := e.POST("/library/tag").
-		WithHeader("Authorization", "Bearer "+token).
-		WithJSON(struct {
-			Tag models.Tag `json:"tag"`
-		}{
-			Tag: randomTag(),
-		}).
-		Expect().
-		Status(200).
-		JSON().
-		Path("$.id").
-		Number().
-		Raw()
-	id := int64(idRaw)
-
-	meta := randomTagMeta()
-	meta.TagID = id
-
-	e.POST("/library/tag/meta").
-		WithHeader("Authorization", "Bearer "+token).
-		WithJSON(struct {
-			Meta models.TagMeta `json:"meta"`
-		}{
-			Meta: meta,
-		}).
-		Expect().
-		Status(200)
-}
-
-func TestGetTagMeta(t *testing.T) {
-	token, err := suite.RootLogin()
-	require.NoError(t, err)
-
-	u := url.URL{
-		Scheme: "http",
-		Host:   cfg.Address,
-	}
-	e := httpexpect.Default(t, u.String())
-
-	idRaw := e.POST("/library/tag").
-		WithHeader("Authorization", "Bearer "+token).
-		WithJSON(struct {
-			Tag models.Tag `json:"tag"`
-		}{
-			Tag: randomTag(),
-		}).
-		Expect().
-		Status(200).
-		JSON().
-		Path("$.id").
-		Number().
-		Raw()
-	id := int64(idRaw)
-
-	const metaSize = 10
-
-	metas := make(map[models.TagMeta]struct{}, metaSize)
-	for i := 0; i < int(metaSize); i++ {
-		meta := randomTagMeta()
-		meta.TagID = id
-		metas[meta] = struct{}{}
-
-		e.POST("/library/tag/meta").
-			WithHeader("Authorization", "Bearer "+token).
-			WithJSON(struct {
-				Meta models.TagMeta `json:"meta"`
-			}{
-				Meta: meta,
-			}).
-			Expect().
-			Status(200)
-	}
-
-	res := e.GET("/library/tag/meta/{id}", id).
-		WithHeader("Authorization", "Bearer "+token).
-		Expect().
-		Status(200).
-		Body().
-		Raw()
-
-	var resp struct {
-		Meta []models.TagMeta `json:"meta"`
-	}
-
-	err = json.Unmarshal([]byte(res), &resp)
-	require.NoError(t, err)
-
-	got := make(map[models.TagMeta]struct{}, len(metas))
-
-	for _, e := range resp.Meta {
-		got[e] = struct{}{}
-	}
-
-	assert.Equal(t, metas, got)
-}
-
-func TestDelMeta(t *testing.T) {
-	token, err := suite.RootLogin()
-	require.NoError(t, err)
-
-	u := url.URL{
-		Scheme: "http",
-		Host:   cfg.Address,
-	}
-	e := httpexpect.Default(t, u.String())
-
-	idRaw := e.POST("/library/tag").
-		WithHeader("Authorization", "Bearer "+token).
-		WithJSON(struct {
-			Tag models.Tag `json:"tag"`
-		}{
-			Tag: randomTag(),
-		}).
-		Expect().
-		Status(200).
-		JSON().
-		Path("$.id").
-		Number().
-		Raw()
-	id := int64(idRaw)
-
-	const metaSize = 2
-
-	metas := make([]models.TagMeta, metaSize)
-	for i := 0; i < int(metaSize); i++ {
-		meta := randomTagMeta()
-		meta.TagID = id
-		metas[i] = meta
-
-		e.POST("/library/tag/meta").
-			WithHeader("Authorization", "Bearer "+token).
-			WithJSON(struct {
-				Meta models.TagMeta `json:"meta"`
-			}{
-				Meta: meta,
-			}).
-			Expect().
-			Status(200)
-	}
-
-	e.DELETE("/library/tag/meta/{id}", id).
-		WithHeader("Authorization", "Bearer "+token).
-		Expect().
-		Status(200).
-		Body().
-		Raw()
-
-	resp := e.GET("/library/tag/meta/{id}", id).
-		WithHeader("Authorization", "Bearer "+token).
-		Expect().
-		Status(200).
-		Body().
-		Raw()
-
-	var got struct {
-		Meta []models.TagMeta `json:"meta"`
-	}
-
-	err = json.Unmarshal([]byte(resp), &got)
-	require.NoError(t, err)
-
-	assert.Equal(t, 0, len(got.Meta))
-}
-
 func randomMedia() models.Media {
 	return models.Media{
 		Name:   ptr.Ptr(gofakeit.MovieName()),
@@ -1014,11 +909,20 @@ func randomMedia() models.Media {
 }
 
 func randomTag() models.Tag {
+	metaLen := rand.Intn(10)
+
+	meta := make(map[string]string, metaLen)
+
+	for i := 0; i < metaLen; i++ {
+		meta[gofakeit.City()] = gofakeit.BeerName()
+	}
+
+	typeId := int64(gofakeit.IntRange(1, len(tagTypes)))
+
 	return models.Tag{
 		Name: gofakeit.Adjective(),
-		Type: models.TagType{
-			ID: int64(gofakeit.IntRange(1, len(tagTypes))),
-		},
+		Type: tagTypes[typeId],
+		Meta: meta,
 	}
 }
 
@@ -1031,11 +935,4 @@ func randomTagList(tags models.TagList, tagLen int) models.TagList {
 	}
 
 	return list
-}
-
-func randomTagMeta() models.TagMeta {
-	return models.TagMeta{
-		Key: gofakeit.Adjective(),
-		Val: gofakeit.Adjective(),
-	}
 }

@@ -361,7 +361,7 @@ rows_loop:
 	return nil
 }
 
-// SaveTag saves new tag
+// SaveTag saves new tag.
 func (s *Storage) SaveTag(ctx context.Context, tag models.Tag) (int64, error) {
 	const op = "storage.sqlite.SaveTag"
 
@@ -396,6 +396,7 @@ func (s *Storage) SaveTag(ctx context.Context, tag models.Tag) (int64, error) {
 	return id, nil
 }
 
+// Tag returnes tag by id.
 func (s *Storage) Tag(ctx context.Context, id int64) (models.Tag, error) {
 	const op = "storage.sqlite.Tag"
 
@@ -420,7 +421,25 @@ func (s *Storage) Tag(ctx context.Context, id int64) (models.Tag, error) {
 	return tag, nil
 }
 
-// DeleteTag deletes tag by its name
+// UpdateTag updates tag information.
+func (s *Storage) UpdateTag(ctx context.Context, tag models.Tag) error {
+	const op = "Storage.UpdateTag"
+
+	query := fmt.Sprintf(`UPDATE library SET name = "%s" WHERE id = "%d"`, tag.Name, tag.ID)
+
+	stmt, err := s.db.PrepareContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if _, err := stmt.ExecContext(ctx); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
+// DeleteTag deletes tag by its name.
 func (s *Storage) DeleteTag(ctx context.Context, id int64) error {
 	const op = "storage.sqlite.DeleteTag"
 
@@ -531,7 +550,7 @@ func (s *Storage) UntagMedia(ctx context.Context, mediaId int64, tags ...models.
 	return nil
 }
 
-func (s *Storage) SetTagMeta(ctx context.Context, meta models.TagMeta) error {
+func (s *Storage) SetTagMeta(ctx context.Context, tag models.Tag, key, val string) error {
 	const op = "Storage.NewTagMeta"
 
 	stmt, err := s.db.PrepareContext(ctx, "REPLACE INTO tagMeta(tag_id, key, value) VALUES(?, ?, ?)")
@@ -540,7 +559,7 @@ func (s *Storage) SetTagMeta(ctx context.Context, meta models.TagMeta) error {
 	}
 	defer stmt.Close()
 
-	res, err := stmt.ExecContext(ctx, meta.TagID, meta.Key, meta.Val)
+	res, err := stmt.ExecContext(ctx, tag.ID, key, val)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -552,42 +571,42 @@ func (s *Storage) SetTagMeta(ctx context.Context, meta models.TagMeta) error {
 	return nil
 }
 
-func (s *Storage) TagMeta(ctx context.Context, tag models.Tag) ([]models.TagMeta, error) {
-	const op = "Storage.GetTagMedia"
+func (s *Storage) TagMeta(ctx context.Context, tag models.Tag) (map[string]string, error) {
+	const op = "Storage.TagMedia"
 
 	stmt, err := s.db.PrepareContext(ctx, "SELECT key, value FROM tagMeta WHERE tag_id=?")
 	if err != nil {
-		return []models.TagMeta{}, fmt.Errorf("%s: %w", op, err)
+		return map[string]string{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	row, err := stmt.QueryContext(ctx, tag.ID)
 	if err != nil {
-		return []models.TagMeta{}, fmt.Errorf("%s: %w", op, err)
+		return map[string]string{}, fmt.Errorf("%s: %w", op, err)
 	}
 
-	meta := models.TagMeta{TagID: tag.ID}
-	metas := make([]models.TagMeta, 0)
+	var key, val string
+	meta := make(map[string]string, 0)
 
 	for row.Next() {
-		if err := row.Scan(&meta.Key, &meta.Val); err != nil {
-			return []models.TagMeta{}, fmt.Errorf("%s: %w", op, err)
+		if err := row.Scan(&key, &val); err != nil {
+			return map[string]string{}, fmt.Errorf("%s: %w", op, err)
 		}
-		metas = append(metas, meta)
+		meta[key] = val
 	}
 
-	return metas, nil
+	return meta, nil
 }
 
-func (s *Storage) DelTagMeta(ctx context.Context, tag models.Tag) error {
+func (s *Storage) DelTagMeta(ctx context.Context, tag models.Tag, key string) error {
 	const op = "Storage.DelTagMeta"
 
-	stmt, err := s.db.Prepare("DELETE FROM tagMeta WHERE tag_id=?")
+	stmt, err := s.db.Prepare("DELETE FROM tagMeta WHERE tag_id=? AND key=?")
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	defer stmt.Close()
 
-	res, err := stmt.ExecContext(ctx, tag.ID)
+	res, err := stmt.ExecContext(ctx, tag.ID, key)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}

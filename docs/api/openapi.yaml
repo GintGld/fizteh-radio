@@ -341,7 +341,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Tag'
+              type: object
+              properties:
+                tag:
+                  $ref: '#/components/schemas/Tag'
       responses:
         '200': 
           description: Successfully created
@@ -366,10 +369,67 @@ paths:
                       - tag exists
         '401':
           $ref: '#/components/responses/Unauthorized'
+    put:
+      description: Update Tag
+      tags:
+        - 'Library: Tag'
+      security:
+          - editorAuth: []
+      requestBody: 
+        description: Tag
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tag:
+                  $ref: '#/components/schemas/Tag'
+      responses:
+        '200': 
+          description: Successfully created
+        '400':
+          description: Tag exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      - tag exists
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /admin/library/tag/{id}:
     parameters:
       -
         $ref: '#/components/parameters/ID'
+    get:
+      description: get tag by its id.
+      tags:
+        - 'Library: Tagg'
+      security:
+        - editorAuth: []
+      responses:
+        '200':
+          description: Got Tag
+          content: 
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+        '400':
+          description: Tag not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      - tag not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
     delete:
       description: Delete tag by its id.
       tags:
@@ -777,6 +837,10 @@ components:
           example: rock
         type:
           $ref: '#/components/schemas/TagType'
+        meta:
+          type: object
+          additionalProperties:
+            type: string
     TagList:
       type: array
       items:

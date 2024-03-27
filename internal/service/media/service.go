@@ -36,6 +36,7 @@ type MediaStorage interface {
 	TagTypes(ctx context.Context) (models.TagTypes, error)
 	AllTags(ctx context.Context) (models.TagList, error)
 	SaveTag(ctx context.Context, tag models.Tag) (int64, error)
+	UpdateTag(ctx context.Context, tag models.Tag) error
 	Tag(ctx context.Context, id int64) (models.Tag, error)
 	DeleteTag(ctx context.Context, id int64) error
 	TagMedia(ctx context.Context, mediaId int64, tags ...models.Tag) error
@@ -43,9 +44,9 @@ type MediaStorage interface {
 	UntagMedia(ctx context.Context, mediaId int64, tags ...models.Tag) error
 
 	// Tag meta information
-	SetTagMeta(ctx context.Context, meta models.TagMeta) error
-	TagMeta(ctx context.Context, tag models.Tag) ([]models.TagMeta, error)
-	DelTagMeta(ctx context.Context, tag models.Tag) error
+	SetTagMeta(ctx context.Context, tag models.Tag, key, val string) error
+	TagMeta(ctx context.Context, tag models.Tag) (map[string]string, error)
+	DelTagMeta(ctx context.Context, tag models.Tag, key string) error
 }
 
 func New(
@@ -202,10 +203,11 @@ func (l *Media) NewMedia(ctx context.Context, media models.Media) (int64, error)
 
 	tags, _ := l.mediaStorage.AllTags(ctx)
 
-	// Recover tag ids
-	// or create new tag if not exists.
+	// Check if tags exist.
 	for _, tag := range media.Tags {
-		if !slices.Contains(tags, tag) {
+		if !slices.ContainsFunc(tags, func(t models.Tag) bool {
+			return models.EqualTags(t, tag)
+		}) {
 			log.Warn("tag not found", slog.String("name", tag.Name))
 			return 0, service.ErrTagNotFound
 		}
@@ -278,15 +280,22 @@ func (l *Media) UpdateMedia(ctx context.Context, media models.Media) error {
 	tagsToDel := make(models.TagList, 0)
 
 	for _, newTag := range media.Tags {
-		if !slices.Contains(tags, newTag) {
+		if !slices.ContainsFunc(tags, func(t models.Tag) bool {
+			return models.EqualTags(t, newTag)
+		}) {
 			log.Warn("tag not found", slog.Int64("id", newTag.ID))
+			return service.ErrTagNotFound
 		}
-		if !slices.Contains(oldMedia.Tags, newTag) {
+		if !slices.ContainsFunc(oldMedia.Tags, func(t models.Tag) bool {
+			return models.EqualTags(t, newTag)
+		}) {
 			tagsToAdd = append(tagsToAdd, newTag)
 		}
 	}
 	for _, oldTag := range oldMedia.Tags {
-		if !slices.Contains(media.Tags, oldTag) {
+		if !slices.ContainsFunc(media.Tags, func(t models.Tag) bool {
+			return models.EqualTags(t, oldTag)
+		}) {
 			tagsToDel = append(tagsToDel, oldTag)
 		}
 	}
@@ -318,7 +327,9 @@ func (l *Media) MultiTagMedia(ctx context.Context, tag models.Tag, mediaIds ...i
 
 	tags, _ := l.mediaStorage.AllTags(ctx)
 
-	if !slices.Contains(tags, tag) {
+	if !slices.ContainsFunc(tags, func(t models.Tag) bool {
+		return models.EqualTags(t, tag)
+	}) {
 		log.Warn("tag not found", slog.Int64("tag id", tag.ID))
 		return service.ErrTagNotFound
 	}
@@ -427,6 +438,7 @@ func (l *Media) AllTags(ctx context.Context) (models.TagList, error) {
 	return tagList, nil
 }
 
+// TODO add meta to these methods
 // SaveTag registers new tag.
 func (l *Media) SaveTag(ctx context.Context, tag models.Tag) (int64, error) {
 	const op = "Media.SaveTag"
@@ -466,7 +478,14 @@ func (l *Media) SaveTag(ctx context.Context, tag models.Tag) (int64, error) {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
-	log.Info("got all tags")
+	tag.ID = id
+
+	for k, v := range tag.Meta {
+		if err := l.mediaStorage.SetTagMeta(ctx, tag, k, v); err != nil {
+			log.Error("failed to add tag meta", sl.Err(err))
+			return 0, fmt.Errorf("%s: %w", op, err)
+		}
+	}
 
 	return id, nil
 }
@@ -492,6 +511,11 @@ func (l *Media) Tag(ctx context.Context, id int64) (models.Tag, error) {
 		return models.Tag{}, fmt.Errorf("%s: %w", op, err)
 	}
 
+	tag.Meta, err = l.mediaStorage.TagMeta(ctx, tag)
+	if err != nil {
+		log.Error("failed to get tag meta", slog.Int64("id", id), sl.Err(err))
+	}
+
 	for _, ttype := range l.tagTypes {
 		if ttype.ID == tag.Type.ID {
 			tag.Type.Name = ttype.Name
@@ -500,6 +524,56 @@ func (l *Media) Tag(ctx context.Context, id int64) (models.Tag, error) {
 	}
 
 	return models.Tag{}, service.ErrTagTypeNotFound
+}
+
+func (l *Media) UpdateTag(ctx context.Context, tag models.Tag) error {
+	const op = "Media.UpdateTag"
+
+	log := l.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+		slog.Int64("id", tag.ID),
+	)
+
+	oldTag, err := l.Tag(ctx, tag.ID)
+	if err != nil {
+		if errors.Is(err, service.ErrTagNotFound) {
+			log.Warn("tag not found")
+			return service.ErrTagNotFound
+		}
+		log.Error("failed to get currect tag info", sl.Err(err))
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if oldTag.Type != tag.Type {
+		log.Warn("ivalid tag type", slog.String("expected", oldTag.Type.Name), slog.String("got", tag.Type.Name))
+		return service.ErrTagTypeInvalid
+	}
+
+	if oldTag.Name != tag.Name {
+		if err := l.mediaStorage.UpdateTag(ctx, tag); err != nil {
+			log.Error("failed to update tag name", sl.Err(err))
+			return fmt.Errorf("%s: %w", op, err)
+		}
+	}
+
+	for oldKey := range oldTag.Meta {
+		if _, ok := tag.Meta[oldKey]; !ok {
+			if err := l.mediaStorage.DelTagMeta(ctx, tag, oldKey); err != nil {
+				log.Error("failed to delete tag meta", sl.Err(err))
+				return fmt.Errorf("%s: %w", op, err)
+			}
+		}
+	}
+
+	for k, v := range tag.Meta {
+		if err := l.mediaStorage.SetTagMeta(ctx, tag, v, k); err != nil {
+			log.Error("failed to set tag meta", sl.Err(err))
+			return fmt.Errorf("%s: %w", op, err)
+		}
+	}
+
+	panic("not implemetned")
 }
 
 // DeleteTag deletes tag by its id.
@@ -519,69 +593,6 @@ func (l *Media) DeleteTag(ctx context.Context, id int64) error {
 			return fmt.Errorf("%s: %w", op, service.ErrTagNotFound)
 		}
 		log.Error("failed to delete media", slog.Int64("id", id))
-		return fmt.Errorf("%s: %w", op, err)
-	}
-
-	return nil
-}
-
-// NewTagMeta register new meta information for tag.
-func (l *Media) NewTagMeta(ctx context.Context, meta models.TagMeta) error {
-	const op = "Media.NewTagMedia"
-
-	log := l.log.With(
-		slog.String("op", op),
-		slog.String("editorname", models.RootLogin),
-		slog.Int64("tag id", meta.TagID),
-		slog.String("key", meta.Key),
-	)
-
-	if _, err := l.mediaStorage.Tag(ctx, meta.TagID); err != nil {
-		if errors.Is(err, storage.ErrTagNotFound) {
-			log.Error("tag not exists")
-			return storage.ErrTagNotFound
-		}
-		log.Error("failed to get tag", sl.Err(err))
-	}
-
-	if err := l.mediaStorage.SetTagMeta(ctx, meta); err != nil {
-		log.Error("failed to add tag meta", sl.Err(err))
-		return fmt.Errorf("%s: %w", op, err)
-	}
-
-	return nil
-}
-
-// TagMeta returns all meta information
-// for given tag.
-func (l *Media) TagMeta(ctx context.Context, tag models.Tag) ([]models.TagMeta, error) {
-	const op = "Media.TagMeta"
-
-	log := l.log.With(
-		slog.String("op", op),
-		slog.String("editorname", models.RootLogin),
-	)
-
-	meta, err := l.mediaStorage.TagMeta(ctx, tag)
-	if err != nil {
-		log.Error("failed to get tag meta", sl.Err(err))
-		return []models.TagMeta{}, fmt.Errorf("%s: %w", op, err)
-	}
-
-	return meta, nil
-}
-
-// DelTagMeta deletes tag meta by its key.
-func (l *Media) DelTagMeta(ctx context.Context, tag models.Tag) error {
-	const op = "Media.DelTagMeta"
-
-	log := l.log.With(
-		slog.String("op", op),
-		slog.String("editorname", models.RootLogin),
-	)
-
-	if err := l.mediaStorage.DelTagMeta(ctx, tag); err != nil {
-		log.Error("failed to del tag meta", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
 

@@ -48,13 +48,10 @@ func New(
 	app.Get("/tag/types", mediaCtr.tagTypes)
 	app.Get("/tag", mediaCtr.allTags)
 	app.Post("/tag", mediaCtr.newTag)
+	app.Put("/tag", mediaCtr.updateTag)
+	app.Get("/tag/:id", mediaCtr.tag)
 	app.Delete("/tag/:id", mediaCtr.deleteTag)
 	app.Post("/tag/multi/:id", mediaCtr.multiTag)
-
-	// Tag meta
-	app.Post("/tag/meta", mediaCtr.newTagMeta)
-	app.Get("/tag/meta/:id", mediaCtr.tagMeta)
-	app.Delete("/tag/meta/:id", mediaCtr.delTagMeta)
 
 	return app
 }
@@ -78,13 +75,9 @@ type Media interface {
 	TagTypes(ctx context.Context) (models.TagTypes, error)
 	AllTags(ctx context.Context) (models.TagList, error)
 	SaveTag(ctx context.Context, tag models.Tag) (int64, error)
+	UpdateTag(ctx context.Context, tag models.Tag) error
 	Tag(ctx context.Context, id int64) (models.Tag, error)
 	DeleteTag(ctx context.Context, id int64) error
-
-	// Tag meta information
-	NewTagMeta(ctx context.Context, meta models.TagMeta) error
-	TagMeta(ctx context.Context, tag models.Tag) ([]models.TagMeta, error)
-	DelTagMeta(ctx context.Context, tag models.Tag) error
 }
 
 type Source interface {
@@ -419,7 +412,7 @@ func (mediaCtr *mediaController) allTags(c *fiber.Ctx) error {
 	})
 }
 
-// newTag create new tag
+// newTag create new tag.
 func (mediaCtr *mediaController) newTag(c *fiber.Ctx) error {
 	var request struct {
 		Tag models.Tag `json:"tag"`
@@ -455,6 +448,68 @@ func (mediaCtr *mediaController) newTag(c *fiber.Ctx) error {
 	})
 }
 
+// tag returns tag by its id.
+func (mediaCtr *mediaController) tag(c *fiber.Ctx) error {
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "bad id",
+		})
+	}
+
+	tag, err := mediaCtr.srvMedia.Tag(context.TODO(), id)
+	if err != nil {
+		if errors.Is(err, service.ErrTagNotFound) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "tag not found",
+			})
+		}
+		if errors.Is(err, service.ErrTagTypeNotFound) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "tag type not found",
+			})
+		}
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"tag": tag,
+	})
+}
+
+// updateTag updates tag.
+func (mediaCtr *mediaController) updateTag(c *fiber.Ctx) error {
+	var request struct {
+		Tag models.Tag `json:"tag"`
+	}
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	if request.Tag.Name == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "name required",
+		})
+	}
+
+	if err := mediaCtr.srvMedia.UpdateTag(context.TODO(), request.Tag); err != nil {
+		if errors.Is(err, service.ErrTagTypeInvalid) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "invalied tag type",
+			})
+		}
+		if errors.Is(err, service.ErrTagNotFound) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "tag not found",
+			})
+		}
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	return c.SendStatus(fiber.StatusOK)
+}
+
 // deleteTag deletes tag by its id
 func (mediaCtr *mediaController) deleteTag(c *fiber.Ctx) error {
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
@@ -470,69 +525,6 @@ func (mediaCtr *mediaController) deleteTag(c *fiber.Ctx) error {
 				"error": "tag not found",
 			})
 		}
-		return c.SendStatus(fiber.StatusInternalServerError)
-	}
-
-	return c.SendStatus(fiber.StatusOK)
-}
-
-// newTagMeta
-func (mediaCtr *mediaController) newTagMeta(c *fiber.Ctx) error {
-	var request struct {
-		Meta models.TagMeta `json:"meta"`
-	}
-
-	if err := c.BodyParser(&request); err != nil {
-		return c.SendStatus(fiber.StatusBadRequest)
-	}
-
-	if request.Meta.Key == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "meta key can't be empty",
-		})
-	}
-
-	if err := mediaCtr.srvMedia.NewTagMeta(context.TODO(), request.Meta); err != nil {
-		if errors.Is(err, service.ErrTagNotFound) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "tag not exists",
-			})
-		}
-		return c.SendStatus(fiber.StatusInternalServerError)
-	}
-
-	return c.SendStatus(fiber.StatusOK)
-}
-
-// tagMeta returns tagMeta
-func (mediaCtr *mediaController) tagMeta(c *fiber.Ctx) error {
-	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "bad id",
-		})
-	}
-
-	res, err := mediaCtr.srvMedia.TagMeta(context.TODO(), models.Tag{ID: id})
-	if err != nil {
-		return c.SendStatus(fiber.StatusInternalServerError)
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"meta": res,
-	})
-}
-
-// delTagMeta deletes all tag meta
-func (mediaCtr *mediaController) delTagMeta(c *fiber.Ctx) error {
-	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "bad id",
-		})
-	}
-
-	if err := mediaCtr.srvMedia.DelTagMeta(context.TODO(), models.Tag{ID: id}); err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
