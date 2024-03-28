@@ -11,7 +11,7 @@ INSERT INTO tag(name, type_id) VALUES
 ('Джаз',                (SELECT id from tagType WHERE name='genre')),
 ('Электро',             (SELECT id from tagType WHERE name='genre')),
 ('Инструментальный',    (SELECT id from tagType WHERE name='genre')),
-('Реп',                 (SELECT id from tagType WHERE name='genre')),
+('Рэп',                 (SELECT id from tagType WHERE name='genre')),
 ('Lo-fi',               (SELECT id from tagType WHERE name='genre'));
 
 INSERT INTO tag(name, type_id) VALUES
