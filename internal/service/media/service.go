@@ -433,6 +433,13 @@ func (l *Media) AllTags(ctx context.Context) (models.TagList, error) {
 		log.Error("failed to get tag list", sl.Err(err))
 	}
 
+	for i := range tagList {
+		tagList[i].Meta, err = l.mediaStorage.TagMeta(ctx, tagList[i])
+		if err != nil {
+			log.Error("failed to get tag meta", slog.Int64("id", tagList[i].ID), sl.Err(err))
+		}
+	}
+
 	log.Info("got all tags")
 
 	return tagList, nil

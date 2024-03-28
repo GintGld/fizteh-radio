@@ -253,6 +253,11 @@ func (mediaCtr *mediaController) updateMedia(c *fiber.Ctx) error {
 				"error": "media not found",
 			})
 		}
+		if errors.Is(err, service.ErrTagNotFound) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "tag not found",
+			})
+		}
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
