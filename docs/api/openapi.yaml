@@ -412,7 +412,7 @@ paths:
     get:
       description: get tag by its id.
       tags:
-        - 'Library: Tagg'
+        - 'Library: Tag'
       security:
         - editorAuth: []
       responses:
