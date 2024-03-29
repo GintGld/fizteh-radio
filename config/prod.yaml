@@ -17,6 +17,6 @@ dash:
   chunk_length: 2s
   buffer_time: 30s
   buffer_depth: 5s
-  client_update_freq: 10s
+  client_update_freq: 2s
   dash_update_freq: 5s
   dash_horizon: 5m

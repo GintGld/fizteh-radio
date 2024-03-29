@@ -150,6 +150,7 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 		slog.String("start", segment.Start.Format(models.TimeFormat)),
 		slog.Float64("begin cut", segment.BeginCut.Seconds()),
 		slog.Float64("stop cut", segment.StopCut.Seconds()),
+		slog.Bool("protected", segment.Protected),
 	)
 
 	if segment.Protected {
