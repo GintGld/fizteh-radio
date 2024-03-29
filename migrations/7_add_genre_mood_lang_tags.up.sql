@@ -6,7 +6,7 @@ DELETE FROM tag WHERE type_id IN (
 -- Insert new tags.
 INSERT INTO tag(name, type_id) VALUES
 ('Поп',                 (SELECT id from tagType WHERE name='genre')),
-('Хих-хоп',             (SELECT id from tagType WHERE name='genre')),
+('Хип-хоп',             (SELECT id from tagType WHERE name='genre')),
 ('Рок',                 (SELECT id from tagType WHERE name='genre')),
 ('Джаз',                (SELECT id from tagType WHERE name='genre')),
 ('Электро',             (SELECT id from tagType WHERE name='genre')),
