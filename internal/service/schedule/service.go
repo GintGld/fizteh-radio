@@ -77,12 +77,12 @@ func (s *Schedule) ScheduleCut(ctx context.Context, start time.Time, stop time.T
 		slog.Int("size", len(segments)),
 	)
 
-	for _, segment := range segments {
+	for i, segment := range segments {
 		if isProt, err := s.schStorage.IsSegmentProtected(ctx, *segment.ID); err != nil {
 			log.Error("fialed to check segment protection", slog.Int64("id", *segment.ID), sl.Err(err))
 			return []models.Segment{}, fmt.Errorf("%s: %w", op, err)
 		} else {
-			segment.Protected = isProt
+			segments[i].Protected = isProt
 		}
 	}
 
