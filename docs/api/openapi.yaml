@@ -166,7 +166,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
   /admin/library/media:
     get:
-      description: Get all info media
+      description: Search media in library.
       tags:
         - 'Library: Media'
       security:
@@ -186,6 +186,11 @@ paths:
             type: array
             items:
               type: string
+        - in: query
+          name: res_len
+          schema:
+            description: maximum response length
+            type: string
       responses:
         '200':
           description: Found editor
