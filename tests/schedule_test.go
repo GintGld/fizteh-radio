@@ -2,6 +2,7 @@ package tests
 
 import (
 	"encoding/json"
+	"math/rand"
 	"net/url"
 	"testing"
 	"time"
@@ -56,6 +57,97 @@ func TestCreateNewSegment(t *testing.T) {
 		Object().
 		Keys().
 		ContainsOnly("id")
+}
+
+func TestCreateSegmentCreateIntersections(t *testing.T) {
+	token, err := suite.RootLogin()
+	require.NoError(t, err)
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   cfg.Address,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	// Create new media
+	media := randomMedia()
+	mediaStr, err := json.Marshal(media)
+	require.NoError(t, err)
+
+	rawMediaID := e.POST("/library/media").
+		WithHeader("Authorization", "Bearer "+token).
+		WithMultipart().
+		WithFile("source", sourceFile).
+		WithFormField("media", string(mediaStr)).
+		Expect().
+		Status(200).
+		JSON().
+		Path("$.id").
+		Number().
+		Raw()
+
+	mediaId := int64(rawMediaID)
+
+	d := 4500 * time.Millisecond
+	delta := time.Duration(1000000)
+
+	date := time.Date(1980, 0, 0, 0, 0, 0, 0, time.UTC)
+
+	segments := []models.Segment{
+		{
+			MediaID:   &mediaId,
+			Start:     ptr.Ptr(date.Add(-delta)),
+			BeginCut:  ptr.Ptr[time.Duration](0),
+			StopCut:   ptr.Ptr(d),
+			Protected: false,
+		},
+		{
+			MediaID:   &mediaId,
+			Start:     ptr.Ptr(date.Add(d - delta)),
+			BeginCut:  ptr.Ptr[time.Duration](0),
+			StopCut:   ptr.Ptr(2 * delta),
+			Protected: false,
+		},
+		{
+			MediaID:   &mediaId,
+			Start:     ptr.Ptr(date.Add(d + delta)),
+			BeginCut:  ptr.Ptr[time.Duration](0),
+			StopCut:   ptr.Ptr(d),
+			Protected: false,
+		},
+	}
+
+	for _, s := range segments {
+		e.POST("/schedule").
+			WithHeader("Authorization", "Bearer "+token).
+			WithJSON(map[string]models.Segment{
+				"segment": s,
+			}).
+			Expect().
+			Status(200).
+			JSON().
+			Path("$.id").
+			Number().
+			Raw()
+	}
+
+	e.POST("/schedule").
+		WithHeader("Authorization", "Bearer "+token).
+		WithJSON(map[string]models.Segment{
+			"segment": {
+				MediaID:   &mediaId,
+				Start:     ptr.Ptr(date),
+				BeginCut:  ptr.Ptr[time.Duration](0),
+				StopCut:   ptr.Ptr(2 * d),
+				Protected: true,
+			},
+		}).
+		Expect().
+		Status(200).
+		JSON().
+		Path("$.id").
+		Number().
+		Raw()
 }
 
 func TestGetSegment(t *testing.T) {
@@ -373,14 +465,13 @@ func TestClearSchedule(t *testing.T) {
 	}
 
 	expectedRes := []int{200, 400, 200, 400, 200}
-	ids := make([]int64, 5)
 
 	for i, segment := range segments {
 		segment.MediaID = ptr.Ptr(int64(mediaId))
 		segment.BeginCut = ptr.Ptr[time.Duration](0)
 		segment.StopCut = ptr.Ptr(sourceDuration)
 
-		index := e.POST("/schedule").
+		rawId := e.POST("/schedule").
 			WithHeader("Authorization", "Bearer "+token).
 			WithJSON(map[string]models.Segment{
 				"segment": segment,
@@ -391,28 +482,30 @@ func TestClearSchedule(t *testing.T) {
 			Path("$.id").
 			Number().
 			Raw()
-		ids[i] = int64(index)
-	}
 
-	e.DELETE("/schedule").
-		WithHeader("Authorization", "Bearer "+token).
-		WithQuery("from", now.Unix()).
-		Expect().
-		Status(200)
+		id := int(rawId)
 
-	// Check the deletion
-	for i, id := range ids {
+		e.DELETE("/schedule").
+			WithHeader("Authorization", "Bearer "+token).
+			WithQuery("from", now.Unix()).
+			Expect().
+			Status(200)
+
 		e.GET("/schedule/{id}", id).
 			WithHeader("Authorization", "Bearer "+token).
 			Expect().
 			Status(expectedRes[i])
 	}
+
 }
 
 // randomSegment creates segment (id and mediaId fields are not specified)
 func randomSegment() models.Segment {
-	begin := time.Duration(gofakeit.Uint32())
-	stop := begin + time.Duration(gofakeit.Uint32())
+	begin := time.Duration(rand.Intn(int(sourceDuration)))
+	stop := begin + time.Duration(rand.Intn(int(sourceDuration)))
+	if stop > sourceDuration {
+		stop = sourceDuration
+	}
 
 	// all time is stored with precision
 	// to microseconds

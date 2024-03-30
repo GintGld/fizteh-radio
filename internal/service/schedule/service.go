@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
@@ -91,7 +92,6 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 	)
 
 	media, err := s.mediaStorage.Media(ctx, *segment.MediaID)
-
 	if err != nil {
 		if errors.Is(err, storage.ErrMediaNotFound) {
 			log.Warn("media not found", slog.Int64("id", *segment.MediaID))
@@ -122,20 +122,81 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 		return 0, service.ErrBeginAfterStop
 	}
 
+	res, err := s.ScheduleCut(ctx, *segment.Start, segment.End())
+	if err != nil {
+		log.Error("failed to get schedule cut")
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+
+	// If new segment is not protected
+	// any intersection causes error.
+	if !segment.Protected {
+		if len(res) > 0 {
+			log.Warn("new not prot. segm has intersection(s)", slog.Any("res", res), slog.Time("start", *segment.Start), slog.Time("end", segment.End()))
+			return 0, service.ErrSegmentIntersection
+		}
+		chans.Send(s.allSegmentsChan, segment)
+
+		id, err := s.schStorage.SaveSegment(ctx, segment)
+		if err != nil {
+			log.Error("failed to save segment", sl.Err(err))
+			return 0, fmt.Errorf("%s: %w", op, err)
+		}
+
+		log.Debug("not prot.", slog.Int64("id", id))
+
+		return id, nil
+	}
+
+	// If new segment is protected and
+	// intersects another protected segment
+	// returns error, since can't resolve intersection.
+	if j := slices.IndexFunc(res, func(s models.Segment) bool { return s.Protected }); j != -1 {
+		log.Warn(
+			"detected intersection of protected segments",
+			slog.String("found (start-stop)", fmt.Sprintf("%s - %s", res[j].Start.String(), res[j].End().String())),
+			slog.String("new (start-stop)", fmt.Sprintf("%s - %s", segment.Start.String(), segment.End().String())),
+		)
+		// FIXME handle this errors every where.
+		return 0, service.ErrSegmentIntersection
+	}
+
+	// All intersected segments are
+	// not protected. Delete them all.
+	for _, segm := range res {
+		if segm.End() == *segment.Start || *segm.Start == segm.End() {
+			continue
+		}
+		if err := s.DeleteSegment(ctx, *segm.ID); err != nil {
+			if errors.Is(err, service.ErrSegmentNotFound) {
+				log.Warn("did not found segment to delete", slog.Int64("segmId", *segm.ID))
+				continue
+			}
+			log.Error("failed to delete segment", slog.Int64("segmId", *segm.ID), sl.Err(err))
+			return 0, fmt.Errorf("%s: %w", op, err)
+		}
+	}
+
+	log.Debug("saving segment")
+
+	// Create segment.
 	id, err := s.schStorage.SaveSegment(ctx, segment)
 	if err != nil {
 		log.Error("failed to save segment", sl.Err(err))
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
-	if segment.Protected {
-		if err := s.schStorage.ProtectSegment(ctx, id); err != nil {
-			log.Error("failed to set segment protection", sl.Err(err))
-			return 0, fmt.Errorf("%s: %w", op, err)
-		}
-		chans.Notify(s.protectedSegmentsChan)
+	log.Debug("saved, protecting", slog.Int64("id", id))
+
+	// Set segment protection.
+	if err := s.schStorage.ProtectSegment(ctx, id); err != nil {
+		log.Error("failed to set segment protection", sl.Err(err))
+		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
+	log.Debug("protected")
+
+	chans.Notify(s.protectedSegmentsChan)
 	chans.Send(s.allSegmentsChan, segment)
 
 	return id, nil
