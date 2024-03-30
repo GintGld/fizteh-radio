@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
+	"slices"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	ptr "github.com/GintGld/fizteh-radio/internal/lib/utils/pointers"
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/internal/service"
+	"github.com/gofiber/fiber/v2/log"
 )
 
 // TODO: save config and restore it
@@ -22,6 +24,9 @@ import (
 const (
 	// Number of segments to have in buffer.
 	segmentsBuff = 5
+	// "Quant" of time. It is supposed that
+	// all media will be shorter that it.
+	timeDelta = time.Second
 )
 
 var (
@@ -53,7 +58,7 @@ type AutoDJ struct {
 	shuffledIds       []int64
 	currentId         int64
 	timerId           int
-	stubWasUsed       bool
+	// stubWasUsed       bool
 }
 
 func New(
@@ -165,44 +170,80 @@ dj_start:
 		err error
 	)
 	// distinguish protected and not
-	for s, err = a.nowPlaying(ctx); err == nil; s, err = a.nowPlaying(ctx) {
-		untill := time.Until(s.Start.Add(*s.StopCut - *s.BeginCut))
-		log.Info("something is playing now, wait till it ends", slog.Time("now", time.Now()), slog.Float64("untill", untill.Seconds()))
-		select {
-		case <-time.After(untill):
-			log.Info("segment ended, try to start autodj")
-		case <-a.stopChan:
-			log.Debug("got stop chan")
-			return nil
-		case <-ctx.Done():
-			log.Debug("got stop chan")
-			return nil
+	// for s, err = a.nowPlaying(ctx); err == nil; s, err = a.nowPlaying(ctx) {
+	// 	untill := time.Until(s.Start.Add(*s.StopCut - *s.BeginCut))
+	// 	log.Info("something is playing now, wait till it ends", slog.Time("now", time.Now()), slog.Float64("untill", untill.Seconds()))
+	// 	select {
+	// 	case <-time.After(untill):
+	// 		log.Info("segment ended, try to start autodj")
+	// 	case <-a.stopChan:
+	// 		log.Debug("got stop chan")
+	// 		return nil
+	// 	case <-ctx.Done():
+	// 		log.Debug("got stop chan")
+	// 		return nil
+	// 	}
+	// }
+	// if !errors.Is(err, service.ErrSegmentNotFound) {
+	// 	log.Error("failed to get current playing segment", sl.Err(err))
+	// 	return fmt.Errorf("%s: %w", op, err)
+	// }
+
+	if s, err = a.nowPlaying(ctx); err == nil {
+		log.Debug("something is playing now, start after that")
+		a.timeHorizon = s.End()
+		if err := a.sch.ClearSchedule(ctx, a.timeHorizon.Add(timeDelta)); err != nil {
+			log.Error("failed to clear schedule", sl.Err(err))
+			return fmt.Errorf("%s: %w", op, err)
+		}
+	} else {
+		if errors.Is(err, service.ErrSegmentNotFound) {
+			a.timeHorizon = time.Now()
+		} else {
+			log.Error("failed to call a.nowPlaying", sl.Err(err))
+			return fmt.Errorf("%s: %w", op, err)
 		}
 	}
-	if !errors.Is(err, service.ErrSegmentNotFound) {
-		log.Error("failed to get current playing segment", sl.Err(err))
-		return fmt.Errorf("%s: %w", op, err)
-	}
 
-	a.timeHorizon = time.Now()
 	log.Debug("start time", slog.Time("", a.timeHorizon))
-
-	// Add some segments at the beginning.
-	for i := 0; i < segmentsBuff; i++ {
-		if err := a.addSegment(ctx); err != nil {
-			log.Error("failed to add new segment", sl.Err(err))
-		}
-	}
 
 main_loop:
 	for {
-		// Add one by one.
-		if err := a.addSegment(ctx); err != nil {
-			log.Error("failed to add new segment", sl.Err(err))
+		// Count how many dj segment
+		// are now in schedule
+		sch, err := a.sch.ScheduleCut(ctx, time.Now(), infinity)
+		if err != nil {
+			log.Error("failed to get schedule cut", sl.Err(err))
+			return fmt.Errorf("%s: %w", op, err)
+		}
+		counter := 0
+		for _, s := range sch {
+			if !s.Protected {
+				counter++
+			}
+		}
+
+		// Add segments to keep fixed number of them
+		// in schedule.
+		// If error occures, don't stop.
+		for i := counter; i <= segmentsBuff; i++ {
+			if err := a.addSegment(ctx); err != nil {
+				if errors.Is(err, service.ErrSegmentIntersection) {
+					log.Error("failed to add new segment (intersection)")
+				} else {
+					log.Error("failed to add new segment", sl.Err(err))
+				}
+			}
+		}
+
+		timer, err := a.getTimer(ctx)
+		if err != nil {
+			log.Error("failed to get timer", sl.Err(err))
+			return fmt.Errorf("%s: %w", op, err)
 		}
 
 		select {
-		case <-a.getTimer():
+		case <-timer:
 		case <-a.confChan:
 			log.Debug("got conf chan")
 			goto dj_start
@@ -270,12 +311,13 @@ func (a *AutoDJ) addSegment(ctx context.Context) error {
 
 	// Get id for the nearest protected segment
 	// to prevent segment intersection.
-	protedctedId := a.nearestProtectedSegment()
+	protectedId := a.nearestProtectedSegment()
 
-	if protedctedId != -1 &&
-		a.timeHorizon.Add(*media.Duration).After(*a.protectedSegments[protedctedId].Start) {
-		protectedStart := *a.protectedSegments[protedctedId].Start
+	if protectedId != -1 &&
+		a.timeHorizon.Add(*media.Duration).After(*a.protectedSegments[protectedId].Start) {
+		protectedStart := *a.protectedSegments[protectedId].Start
 
+		// TODO enable stubs
 		// Handle small time with stub
 		// if protectedStart.Sub(a.timeHorizon) <= conf.Stub.Threshold {
 		// 	newSegm = models.Segment{
@@ -294,15 +336,34 @@ func (a *AutoDJ) addSegment(ctx context.Context) error {
 		// }
 		cut := protectedStart.Sub(a.timeHorizon)
 		newSegm.StopCut = &cut
-		s := a.protectedSegments[protedctedId]
+
+		// Shift autodj horizon to the end of
+		// protected media series.
+		i := protectedId + 1
+		for i < len(a.protectedSegments) &&
+			a.protectedSegments[i].Start.Sub(*a.protectedSegments[i-1].Start) < timeDelta {
+			i++
+		}
+		s := a.protectedSegments[i-1]
 		a.timeHorizon = s.Start.Add(*s.StopCut - *s.BeginCut)
 
 		// Delete protected segments that
-		// I already got around.
-		if int(protedctedId)+1 < len(a.protectedSegments) {
-			a.protectedSegments = a.protectedSegments[protedctedId+1:]
+		// already got around.
+		if i < len(a.protectedSegments) {
+			a.protectedSegments = a.protectedSegments[i:]
 		} else {
 			a.protectedSegments = nil
+		}
+
+		// FIXME: crutch, fix it may be
+		// If supposed segment has zero duration,
+		// just skip its adding to schedule.
+		// This situiation usually appears
+		// during stacking protected segments,
+		// dj tries to put segment after first protected one
+		// and the next step cuts it to zero.
+		if cut == 0 {
+			return nil
 		}
 	} else {
 		// Move time horizon.
@@ -311,6 +372,13 @@ func (a *AutoDJ) addSegment(ctx context.Context) error {
 
 	// Add new segment.
 	if _, err := a.sch.NewSegment(ctx, newSegm); err != nil {
+		if errors.Is(err, service.ErrSegmentIntersection) {
+			log.Error(
+				"failed to add segment (intersection)",
+				slog.String("segm start - stop", fmt.Sprintf("%s - %s", newSegm.Start.String(), newSegm.End().String())),
+			)
+			return service.ErrSegmentIntersection
+		}
 		log.Error("failed to add new segment", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -320,19 +388,30 @@ func (a *AutoDJ) addSegment(ctx context.Context) error {
 
 // getTimer returns timer to wait before
 // add new segment.
-func (a *AutoDJ) getTimer() (timer <-chan time.Time) {
+func (a *AutoDJ) getTimer(ctx context.Context) (<-chan time.Time, error) {
 	if a.timerId >= len(a.library) {
 		a.timerId = 0
 	}
-	if a.stubWasUsed {
-		timer = time.After(*a.stub.Duration)
-		a.stubWasUsed = false
-	} else {
-		timer = time.After(*a.library[a.timerId].Duration)
-		a.timerId++
+
+	sch, err := a.sch.ScheduleCut(ctx, time.Now(), infinity)
+	if err != nil {
+		log.Error("failed to get schedule cut")
 	}
 
-	return
+	a.timerId++
+
+	// Take first dj period in future
+	// wait untill it start playing
+	j := slices.IndexFunc(sch, func(s models.Segment) bool {
+		return !s.Protected && s.Start.After(time.Now())
+	})
+
+	// No dj periods
+	if j == -1 {
+		return time.After(0), nil
+	}
+
+	return time.After(time.Until(*sch[j].Start)), nil
 }
 
 // updateLibrary updates library via current config.
@@ -410,6 +489,10 @@ func (a *AutoDJ) updateProtected(ctx context.Context) error {
 		slog.String("op", op),
 	)
 
+	defer func() {
+		log.Debug("hor after updateProtected", slog.Time("", a.timeHorizon))
+	}()
+
 	// Get segments.
 	now := time.Now()
 	sch, err := a.sch.ScheduleCut(ctx, now, infinity)
@@ -418,78 +501,80 @@ func (a *AutoDJ) updateProtected(ctx context.Context) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
+	log.Debug("got sch", slog.Any("", sch))
+
 	// Create slices for protected (external) segments
-	// and unprotected (internal) segments from now.
 	a.protectedSegments = make([]models.Segment, 0)
-	djSch := make([]models.Segment, 0)
 	for _, s := range sch {
 		if s.Protected {
 			a.protectedSegments = append(a.protectedSegments, s)
-		} else {
-			djSch = append(djSch, s)
 		}
 	}
 
-	// Handle protected segments.
-	// It is neccesesary to consider
-	// only first protected segment.
-	if len(a.protectedSegments) > 0 {
-		protSegmentStart := *a.protectedSegments[0].Start
-		protSegmentStop := protSegmentStart.Add(*a.protectedSegments[0].StopCut - *a.protectedSegments[0].BeginCut)
+	if len(sch) == 0 {
+		return nil
+	}
 
-		// Protected segment is now playing case.
-		// This case usually appears, if autodj dj
-		// starts when protected segment is
-		// already playing.
-		if protSegmentStart.Before(now) {
-			log.Debug("now is playing prot.", slog.Time("now", now))
-
-			// Clear schedule.
+	// special case if there is only one
+	// segment in schedule.
+	// If it's plying now, move horizon to its end,
+	// delete othervise.
+	if len(sch) == 1 {
+		if sch[0].Start.Before(now) {
+			a.timeHorizon = sch[0].End()
+			return nil
+		} else {
 			if err := a.sch.ClearSchedule(ctx, now); err != nil {
 				log.Error("failed to clear schedule", sl.Err(err))
 				return fmt.Errorf("%s: %w", op, err)
 			}
-
-			// Move time horizon to the end of
-			// protected segment.
-			a.timeHorizon = protSegmentStop
-
+			a.timeHorizon = time.Now()
 			return nil
 		}
+	}
 
-		// Find dj's first segment that intersects
-		// first protected segment.
-		for i, s := range djSch {
-			djSegmentStop := s.Start.Add(*s.StopCut - *s.BeginCut)
-
-			if djSegmentStop.After(protSegmentStart) {
-				log.Debug("found protected",
-					slog.Time("dj stop", djSegmentStop),
-					slog.Time("protected start", protSegmentStart),
-				)
-
-				// Clear schedule from "bad" dj's segments.
-				// Subtract second to delete current segment also.
-				if err := a.sch.ClearSchedule(ctx, djSegmentStop.Add(-time.Second)); err != nil {
+	// Iterate over segments in schedule
+	// search for gap, produces by deleting
+	// unprotected segments in Media.NewSegment function
+	// Find last segment before gap, move horizon
+	// to its end, clear schedule after this time point
+	for i := 0; i < len(sch)-1; i++ {
+		s1 := sch[i]
+		s2 := sch[i+1]
+		if s1.End() != *s2.Start {
+			log.Debug("found cutted empty interval", slog.Time("begin", s1.End()), slog.Time("stop", *s2.Start))
+			a.timeHorizon = s1.End()
+			if s1.Protected {
+				if err := a.sch.ClearSchedule(ctx, now); err != nil {
+					log.Error("failed to clear schedule", sl.Err(err))
+					return fmt.Errorf("%s: %w", op, err)
+				}
+				return nil
+			} else {
+				if err := a.sch.ClearSchedule(ctx, s1.End().Add(timeDelta)); err != nil {
 					log.Error("failed to clear schedule", sl.Err(err))
 					return fmt.Errorf("%s: %w", op, err)
 				}
 
-				// Move time horizon to the start of
-				// the first deleted segment.
-				a.timeHorizon = *s.Start
+				// Recover id of last segment before gap
+				// to continue playing the same segment.
+				lastId := slices.IndexFunc(a.library, func(m models.Media) bool {
+					return *m.ID == *s1.MediaID
+				})
 
-				// Move media id backwards to keep
-				// media order.
-				a.currentId -= int64(len(djSch) - i - 1)
-				for a.currentId < 0 {
-					a.currentId += int64(len(a.shuffledIds))
+				if lastId == -1 {
+					log.Error("failed to recover last valid media used by dj, reset to 0")
 				}
 
+				a.currentId = int64(lastId) + 1
 				return nil
 			}
 		}
 	}
+
+	// There's no gap because
+	// new protected segment is last.
+	a.timeHorizon = sch[len(sch)-1].End()
 
 	return nil
 }
@@ -526,7 +611,7 @@ func (a *AutoDJ) nowPlaying(ctx context.Context) (models.Segment, error) {
 }
 
 // nearestProtectedSegment return nearest protected segment.
-func (a *AutoDJ) nearestProtectedSegment() int64 {
+func (a *AutoDJ) nearestProtectedSegment() int {
 	const op = "AutoDJ.nearestProtectedSegment"
 
 	log := a.log.With(
@@ -537,7 +622,7 @@ func (a *AutoDJ) nearestProtectedSegment() int64 {
 		stop := s.Start.Add(*s.StopCut - *s.BeginCut)
 		if stop.After(a.timeHorizon) {
 			log.Debug("time horizon intersects protected segment", slog.Int("id", i))
-			return int64(i)
+			return i
 		}
 	}
 	return -1

@@ -252,8 +252,6 @@ func (s *Schedule) DeleteSegment(ctx context.Context, id int64) error {
 		slog.String("editorname", models.RootLogin),
 	)
 
-	log.Info("deleting segment", slog.Int64("id", id))
-
 	isProt, err := s.schStorage.IsSegmentProtected(ctx, id)
 	if err != nil {
 		if errors.Is(err, storage.ErrSegmentNotFound) {
@@ -272,8 +270,6 @@ func (s *Schedule) DeleteSegment(ctx context.Context, id int64) error {
 		log.Error("failed to delete segment", slog.Int64("id", id))
 		return fmt.Errorf("%s: %w", op, err)
 	}
-
-	log.Info("deleted segment", slog.Int64("id", id))
 
 	if isProt {
 		chans.Notify(s.protectedSegmentsChan)

@@ -79,6 +79,11 @@ type Segment struct {
 	Protected bool           `json:"protected"`
 }
 
+// End returns time of segment end (UTC).
+func (s Segment) End() time.Time {
+	return s.Start.Add(*s.StopCut - *s.BeginCut)
+}
+
 type AutoDJConfig struct {
 	Tags TagList    `json:"tags"`
 	Stub AutoDJStub `json:"stub"`

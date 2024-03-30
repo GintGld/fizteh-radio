@@ -18,7 +18,8 @@ var (
 	ErrTagTypeNotFound = errors.New("tag type not found")
 	ErrTagTypeInvalid  = errors.New("invalid tag type")
 
-	ErrSegmentNotFound = errors.New("segment not found")
-	ErrCutOutOfBounds  = errors.New("cuts out of bounds")
-	ErrBeginAfterStop  = errors.New("begin cut is after stop cut")
+	ErrSegmentNotFound     = errors.New("segment not found")
+	ErrCutOutOfBounds      = errors.New("cuts out of bounds")
+	ErrBeginAfterStop      = errors.New("begin cut is after stop cut")
+	ErrSegmentIntersection = errors.New("intersection between segments")
 )

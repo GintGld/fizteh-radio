@@ -143,6 +143,11 @@ func (schCtr *scheduleController) newSegment(c *fiber.Ctx) error {
 				"error": "begin after stop",
 			})
 		}
+		if errors.Is(err, service.ErrSegmentIntersection) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "segment intersection",
+			})
+		}
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 

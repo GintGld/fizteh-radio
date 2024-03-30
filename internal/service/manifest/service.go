@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
@@ -182,6 +183,9 @@ func (m *Manifest) updateLastPlayedPeriod() {
 	}
 
 	for i, period := range m.man.Periods {
+		if period.Start == nil {
+			log.Warn("period start is nil", slog.Int("periodId", i), slog.String("period", fmt.Sprintf("%+v", period)))
+		}
 		periodStart := m.startTime.Add(time.Duration(*period.Start))
 		periodEnd := periodStart.Add(time.Duration(period.Duration))
 
