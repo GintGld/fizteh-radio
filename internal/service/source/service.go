@@ -63,8 +63,6 @@ func (s *Source) UploadSource(ctx context.Context, path string, media *models.Me
 		slog.String("editorname", models.RootLogin),
 	)
 
-	log.Info("uploading source")
-
 	if media.SourceID != nil {
 		log.Error("media source id already set")
 		return fmt.Errorf("%s: media source id already set", op)
@@ -112,8 +110,6 @@ func (s *Source) UploadSource(ctx context.Context, path string, media *models.Me
 		return err
 	}
 
-	log.Info("uploaded source", slog.Int64("sourceID", sourceID))
-
 	media.SourceID = ptr.Ptr(int64(sourceID))
 
 	durationString, err := ffmpeg.GetMeta(&fileName, "duration")
@@ -154,8 +150,6 @@ func (s *Source) LoadSource(ctx context.Context, destDir string, media models.Me
 		return "", fmt.Errorf("%s: media source is not defined", op)
 	}
 
-	log.Info("loading source", slog.Int64("sourceID", *media.SourceID))
-
 	dir, err := s.getCorrespondingDir(*media.SourceID)
 	if err != nil {
 		log.Error(
@@ -187,8 +181,6 @@ func (s *Source) LoadSource(ctx context.Context, destDir string, media models.Me
 		return "", err
 	}
 
-	log.Info("loaded source", slog.Int64("sourceID", *media.SourceID))
-
 	return destName, nil
 }
 
@@ -218,8 +210,6 @@ func (s *Source) DeleteSource(ctx context.Context, media models.Media) error {
 
 	fileName := dir + "/" + strconv.Itoa(int(sourceID)) + ".mp3"
 
-	log.Info("deleting source", slog.Int64("sourceID", sourceID))
-
 	if _, err := os.Stat(fileName); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			log.Warn("source does not exist", slog.Int64("sourceID", sourceID))
@@ -231,8 +221,6 @@ func (s *Source) DeleteSource(ctx context.Context, media models.Media) error {
 	if err := os.Remove(fileName); err != nil {
 		log.Error("failed to delete source file", slog.Int64("sourceID", sourceID), sl.Err(err))
 	}
-
-	log.Info("deleted source", slog.Int64("sourceID", sourceID))
 
 	return nil
 }

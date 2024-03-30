@@ -62,20 +62,11 @@ func (s *Schedule) ScheduleCut(ctx context.Context, start time.Time, stop time.T
 		slog.String("editorname", models.RootLogin),
 	)
 
-	log.Info("get schedule cut", slog.Time("start", start), slog.Time("stop", stop))
-
 	segments, err := s.schStorage.ScheduleCut(ctx, start, stop)
 	if err != nil {
 		log.Error("failed to get schedule cut", sl.Err(err))
 		return []models.Segment{}, fmt.Errorf("%s: %w", op, err)
 	}
-
-	log.Info(
-		"got schedule cut",
-		slog.String("start", start.Format(models.TimeFormat)),
-		slog.String("stop", stop.Format(models.TimeFormat)),
-		slog.Int("size", len(segments)),
-	)
 
 	for i, segment := range segments {
 		if isProt, err := s.schStorage.IsSegmentProtected(ctx, *segment.ID); err != nil {
@@ -98,8 +89,6 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 		slog.String("op", op),
 		slog.String("editorname", models.RootLogin),
 	)
-
-	log.Info("validating media", slog.Int64("id", *segment.MediaID))
 
 	media, err := s.mediaStorage.Media(ctx, *segment.MediaID)
 
@@ -133,33 +122,17 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 		return 0, service.ErrBeginAfterStop
 	}
 
-	log.Info("media is valid", slog.Int64("id", *segment.MediaID))
-
-	log.Info("registering new segment")
-
 	id, err := s.schStorage.SaveSegment(ctx, segment)
 	if err != nil {
 		log.Error("failed to save segment", sl.Err(err))
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
-	log.Info(
-		"registered segment",
-		slog.Int64("id", id),
-		slog.Int64("mediaID", *segment.MediaID),
-		slog.String("start", segment.Start.Format(models.TimeFormat)),
-		slog.Float64("begin cut", segment.BeginCut.Seconds()),
-		slog.Float64("stop cut", segment.StopCut.Seconds()),
-		slog.Bool("protected", segment.Protected),
-	)
-
 	if segment.Protected {
 		if err := s.schStorage.ProtectSegment(ctx, id); err != nil {
 			log.Error("failed to set segment protection", sl.Err(err))
 			return 0, fmt.Errorf("%s: %w", op, err)
 		}
-		log.Info("protected segment", slog.Int64("id", id))
-
 		chans.Notify(s.protectedSegmentsChan)
 	}
 

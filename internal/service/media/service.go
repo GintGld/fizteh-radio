@@ -355,8 +355,6 @@ func (l *Media) Media(ctx context.Context, id int64) (models.Media, error) {
 		slog.String("editorname", models.RootLogin),
 	)
 
-	log.Info("getting media")
-
 	media, err := l.mediaStorage.Media(ctx, id)
 	if err != nil {
 		if errors.Is(err, storage.ErrMediaNotFound) {
@@ -366,8 +364,6 @@ func (l *Media) Media(ctx context.Context, id int64) (models.Media, error) {
 		log.Error("failed to get media", slog.Int64("id", id), sl.Err(err))
 		return models.Media{}, err
 	}
-
-	log.Info("found media", slog.Int64("id", id))
 
 	return media, nil
 }

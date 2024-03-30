@@ -90,19 +90,19 @@ func (m *Manifest) SetSchedule(_ context.Context, schedule []models.Segment) err
 	)
 
 	// update period indexing
-	log.Debug("updating lastPlayedPeriod")
 	m.updateLastPlayedPeriod()
-	log.Debug("updated lastPlayedPeriod")
 
 	// reset periods
 	m.man.Periods = make([]*mpd.Period, len(schedule))
 
+main_loop:
 	for i, segment := range schedule {
 		// Handle segment intersection.
 		// That's no guarantee that client
 		// won't play remained chunks.
 		// Music stream may be raggy,
 		// but nor server nor client won't crash.
+		stopCut := *segment.StopCut // TODO: remove this variable after migrating from pointers
 		if i < len(schedule)-1 {
 			next := schedule[i+1]
 			if segment.Start.Add(*segment.StopCut - *segment.BeginCut).After(*next.Start) {
@@ -113,13 +113,17 @@ func (m *Manifest) SetSchedule(_ context.Context, schedule []models.Segment) err
 					slog.Float64("beginCut", segment.BeginCut.Seconds()),
 					slog.Float64("stop", segment.StopCut.Seconds()),
 				)
-				*segment.StopCut = next.Start.Sub(*segment.Start)
+				stopCut = next.Start.Sub(*segment.Start)
+				if stopCut <= 0 {
+					log.Warn("stopcut became negative, don't put this segment into manifest")
+					continue main_loop
+				}
 			}
 		}
 
 		m.man.Periods[i] = &mpd.Period{
 			ID:       strconv.Itoa(i + 1 + m.lastPlayedPeriod),
-			Duration: mpd.Duration(*segment.StopCut - *segment.BeginCut),
+			Duration: mpd.Duration(stopCut - *segment.BeginCut),
 			Start:    ptr.Ptr(mpd.Duration(segment.Start.Sub(m.startTime))),
 			// BaseURL:  []string{m.baseUrl},
 			AdaptationSets: []*mpd.AdaptationSet{{
@@ -167,7 +171,6 @@ func (m *Manifest) updateLastPlayedPeriod() {
 	)
 
 	if len(m.man.Periods) == 0 {
-		log.Debug("no periods")
 		return
 	}
 
@@ -175,7 +178,6 @@ func (m *Manifest) updateLastPlayedPeriod() {
 
 	// no periods were played untill now
 	if now.Before(m.startTime.Add(time.Duration(*m.man.Periods[0].Start))) {
-		log.Debug("no periods were played")
 		return
 	}
 
@@ -186,11 +188,6 @@ func (m *Manifest) updateLastPlayedPeriod() {
 		// there is a period playing now
 		if now.After(periodStart) && now.Before(periodEnd) {
 			m.lastPlayedPeriod += i
-			log.Debug(
-				"found period currently playing",
-				slog.Int("lastPlayedPeriod", m.lastPlayedPeriod),
-				slog.Int("idx", i),
-			)
 			return
 		}
 

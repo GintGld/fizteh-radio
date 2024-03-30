@@ -99,8 +99,6 @@ func (c *Content) ClearCache() error {
 		log.Error("failed to clear cache", sl.Err(err))
 	}
 
-	log.Debug("cleared cache")
-
 	return nil
 }
 

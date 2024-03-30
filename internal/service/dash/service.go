@@ -110,22 +110,16 @@ mainloop:
 			return err
 		}
 
-		log.Debug("got schedule")
-
 		// Update manifest
 		if err := d.manifest.SetSchedule(ctx, schedule); err != nil {
 			log.Error("failed to update schedule")
 			return err
 		}
 
-		log.Debug("schedule set")
-
 		// Save new manifest
 		if err := d.manifest.Dump(); err != nil {
 			log.Error("failed to dump manifest")
 		}
-
-		log.Debug("dumped manifest")
 
 		// Create dash segments
 		for _, segment := range schedule {
@@ -134,12 +128,8 @@ mainloop:
 			}
 		}
 
-		log.Debug("generated segments")
-
 		if err := d.content.ClearCache(); err != nil {
 			log.Error("failed to clear cache", sl.Err(err))
-		} else {
-			log.Debug("cleared cache")
 		}
 
 		timer := time.After(d.updateFreq)
@@ -147,30 +137,19 @@ mainloop:
 	select_case:
 		select {
 		case segm := <-d.notifyChan:
-			log.Debug("got notify chan")
 			start := *segm.Start
 			stop := segm.Start.Add(*segm.StopCut - *segm.BeginCut)
 			now := time.Now()
 			hor := now.Add(d.horizon)
-			if start.After(now) && start.Before(hor) || stop.After(now) && stop.Before(hor) {
-				log.Debug(
-					"segment is in horizon",
-					slog.String("now", now.Format(models.TimeFormat)),
-					slog.String("start", start.Format(models.TimeFormat)),
-					slog.String("stop", stop.Format(models.TimeFormat)),
-				)
-			} else {
+			if start.After(hor) || stop.Before(now) {
 				log.Debug("segment is not in horizon")
 				goto select_case
 			}
 		case <-d.stopChan:
-			log.Debug("got stop chan")
 			break mainloop
 		case <-ctx.Done():
-			log.Debug("got context stop")
 			break mainloop
 		case <-timer:
-			log.Debug("timer tick")
 		}
 	}
 

@@ -54,7 +54,7 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 	// target path
 	path := c.path + "/" + ffmpeg.Dir(s)
 
-	// check if content is already exists
+	// check if content already exists
 	if fileInfo, err := os.Stat(path); err == nil {
 		if !fileInfo.IsDir() {
 			log.Error(
@@ -63,13 +63,9 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 			)
 			return fmt.Errorf("%s: is not directory", op)
 		}
-		log.Debug(
-			"content already exists",
-			slog.Int64("id", *s.ID),
-		)
 		return nil
 	} else if !errors.Is(err, os.ErrNotExist) {
-		log.Debug(
+		log.Error(
 			"failed to get path stat",
 			slog.String("path", path),
 			sl.Err(err),
@@ -86,11 +82,6 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 		return err
 	}
 
-	log.Debug(
-		"made dir",
-		slog.String("dir", c.path+"/"+ffmpeg.Dir(s)),
-	)
-
 	media, err := c.media.Media(ctx, *s.MediaID)
 	if err != nil {
 		log.Error(
@@ -100,8 +91,6 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 		)
 		return fmt.Errorf("%s: %w", op, err)
 	}
-
-	log.Debug("got media", slog.Int64("mediaID", *s.MediaID))
 
 	filePath, err := c.source.LoadSource(ctx, c.path+"/.cache", media)
 	if err != nil {
@@ -113,9 +102,8 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	log.Debug("loaded source", slog.Int64("sourceID", *media.SourceID))
-
 	// TODO: get meta information
+	// TODO: or move stream parameters to config
 
 	// set the limit for bitrate (placeholder before bitrateSwitching)
 	bitrate := maxBitrate
@@ -127,9 +115,6 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 	// if cmp.meta.sampling_rate < samplingRate {
 	// 	samplingRate = cmp.meta.sampling_rate
 	// }
-
-	// TODO: temporary disabled start/stop cutting,
-	// return it later
 
 	startString := strconv.FormatFloat(s.BeginCut.Seconds(), 'g', -1, 64)
 	stopString := strconv.FormatFloat(s.StopCut.Seconds(), 'g', -1, 64)
@@ -156,12 +141,8 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 		c.path+"/"+mpdFile, //						output file
 	)
 
-	log.Debug("prepared cmd", slog.String("cmd", cmd.String()))
-
 	errorWriter := newWriter()
 	cmd.Stderr = errorWriter
-
-	log.Debug("set stderr")
 
 	if err := cmd.Run(); err != nil {
 		log.Error(
@@ -173,16 +154,9 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	log.Debug("ran cmd")
-
 	time.AfterFunc(
 		time.Until(*s.Start)+*s.StopCut-*s.BeginCut+waitBeforeDelete,
 		func() { c.deleteDASHFiles(s) },
-	)
-
-	log.Debug(
-		"set timer to delete content",
-		slog.Int64("id", *s.ID),
 	)
 
 	return nil
@@ -202,12 +176,6 @@ func (c *Content) deleteDASHFiles(s models.Segment) error {
 		log.Error("failed to delete dash files", slog.String("path", path), sl.Err(err))
 		return err
 	}
-
-	log.Debug(
-		"deleted content",
-		slog.Int64("id", *s.ID),
-		slog.String("path", c.path+"/"+ffmpeg.Dir(s)),
-	)
 
 	return nil
 }
@@ -233,7 +201,6 @@ func (c *Content) deleteCache() error {
 
 	errAll := make([]error, 0)
 	for _, file := range files {
-		log.Debug("", slog.String("item", file.Name()))
 		err = os.Remove(cacheDir + "/" + file.Name())
 		if err != nil {
 			log.Error(
@@ -248,8 +215,6 @@ func (c *Content) deleteCache() error {
 	if len(errAll) > 0 {
 		return errors.Join(errAll...)
 	}
-
-	log.Debug("cleared cache")
 
 	return nil
 }
@@ -273,7 +238,6 @@ func (c *Content) deleteAll() error {
 
 	errAll := make([]error, 0)
 	for _, file := range files {
-		log.Debug("", slog.String("item", file.Name()))
 		if file.Name() != ".cache" {
 			err = os.RemoveAll(c.path + "/" + file.Name())
 			if err != nil {
@@ -291,15 +255,12 @@ func (c *Content) deleteAll() error {
 		return errors.Join(errAll...)
 	}
 
-	log.Debug("deleted all dash files", slog.String("dir", c.path))
-
 	if err := c.deleteCache(); err != nil {
 		log.Error(
 			"failed to delete cache",
 			sl.Err(err),
 		)
 	}
-	log.Debug("deleted cache")
 
 	return nil
 }

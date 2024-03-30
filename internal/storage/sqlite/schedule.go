@@ -28,9 +28,9 @@ func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Ti
 		SELECT id, media_id, start_mus, begin_cut, stop_cut 
 		FROM schedule
 		WHERE (
-			start_mus BETWEEN $1 AND $2
-			OR
-			start_mus + (stop_cut - begin_cut) BETWEEN $1 AND $2
+			start_mus + (stop_cut - begin_cut) > ?
+			AND
+			start_mus < ?
 		)
 		ORDER BY start_mus
 	`)
