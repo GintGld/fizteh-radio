@@ -169,25 +169,6 @@ dj_start:
 		s   models.Segment
 		err error
 	)
-	// distinguish protected and not
-	// for s, err = a.nowPlaying(ctx); err == nil; s, err = a.nowPlaying(ctx) {
-	// 	untill := time.Until(s.Start.Add(*s.StopCut - *s.BeginCut))
-	// 	log.Info("something is playing now, wait till it ends", slog.Time("now", time.Now()), slog.Float64("untill", untill.Seconds()))
-	// 	select {
-	// 	case <-time.After(untill):
-	// 		log.Info("segment ended, try to start autodj")
-	// 	case <-a.stopChan:
-	// 		log.Debug("got stop chan")
-	// 		return nil
-	// 	case <-ctx.Done():
-	// 		log.Debug("got stop chan")
-	// 		return nil
-	// 	}
-	// }
-	// if !errors.Is(err, service.ErrSegmentNotFound) {
-	// 	log.Error("failed to get current playing segment", sl.Err(err))
-	// 	return fmt.Errorf("%s: %w", op, err)
-	// }
 
 	if s, err = a.nowPlaying(ctx); err == nil {
 		log.Debug("something is playing now, start after that")
