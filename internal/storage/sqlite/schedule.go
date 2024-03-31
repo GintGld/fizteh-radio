@@ -184,6 +184,10 @@ func (s *Storage) ProtectSegment(ctx context.Context, id int64) error {
 	defer stmt.Close()
 
 	if _, err := stmt.ExecContext(ctx, id); err != nil {
+		var sqliteErr sqlite3.Error
+		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+			return storage.ErrSegmentAlreadyProtected
+		}
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -210,6 +214,107 @@ func (s *Storage) IsSegmentProtected(ctx context.Context, id int64) (bool, error
 	}
 
 	return res == 1, nil
+}
+
+// NewLive registers new segment.
+func (s *Storage) NewLive(ctx context.Context, live models.Live) (int64, error) {
+	const op = "storage.NewLive"
+
+	stmt, err := s.db.Prepare("INSERT INTO live_stream(name, start) VALUES(?, ?)")
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	res, err := stmt.ExecContext(ctx, live.Name, live.Start)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return id, nil
+}
+
+// GetLive returns all registered live streams
+// starting after given time point.
+func (s *Storage) GetLive(ctx context.Context, start time.Time) ([]models.Live, error) {
+	const op = "Storage.GetLive"
+
+	stmt, err := s.db.Prepare("SELECT id, name, start FROM live_stream WHERE start >= ?")
+	if err != nil {
+		return []models.Live{}, fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.QueryContext(ctx, start.UnixMicro())
+	if err != nil {
+		return []models.Live{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	lives := make([]models.Live, 0)
+	live := models.Live{}
+	var startMs int64
+	for rows.Next() {
+		if err := rows.Scan(&live.ID, &live.Name, &startMs); err != nil {
+			return []models.Live{}, fmt.Errorf("%s: %w", op, err)
+		}
+		live.Start = time.Unix(startMs/1000000, startMs%1000000*1000)
+		lives = append(lives, live)
+	}
+
+	return lives, nil
+}
+
+// LiveId returns corresponding live id
+// for segment. If not exists. returns 0.
+func (s *Storage) LiveId(ctx context.Context, id int64) (int64, error) {
+	const op = "storage.sqlite.LiveId"
+
+	stmt, err := s.db.Prepare("SELECT live_id FROM schedule_live WHERE segment_id=?")
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	row := stmt.QueryRowContext(ctx, id)
+
+	var res int64
+
+	if err := row.Scan(&res); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return res, nil
+}
+
+// AttachLive registers segment as live chapter.
+func (s *Storage) AttachLive(ctx context.Context, segmId int64, liveId int64) error {
+	const op = "Storage.AttachLive"
+
+	stmt, err := s.db.PrepareContext(ctx, `
+		INSERT INTO schedule_live(segment_id, live_id)
+		VALUES(?, ?)
+	`)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if _, err := stmt.Exec(segmId, liveId); err != nil {
+		var sqliteErr sqlite3.Error
+		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+			return storage.ErrSegmentAlreadyAttachedToLive
+		}
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
 }
 
 // ClearSchedule clears schedule from given timestamp.

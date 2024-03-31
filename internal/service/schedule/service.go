@@ -25,13 +25,21 @@ type Schedule struct {
 }
 
 type ScheduleStorage interface {
+	// Global schedule
 	ScheduleCut(ctx context.Context, start time.Time, stop time.Time) ([]models.Segment, error)
+	ClearSchedule(ctx context.Context, stamp time.Time) error
+	// Single segment
 	SaveSegment(ctx context.Context, segment models.Segment) (int64, error)
 	Segment(ctx context.Context, period int64) (models.Segment, error)
 	DeleteSegment(ctx context.Context, period int64) error
+	// Segment protection
 	ProtectSegment(ctx context.Context, id int64) error
 	IsSegmentProtected(ctx context.Context, id int64) (bool, error)
-	ClearSchedule(ctx context.Context, stamp time.Time) error
+	// Segment live
+	GetLive(ctx context.Context, start time.Time) ([]models.Live, error)
+	NewLive(ctx context.Context, live models.Live) (int64, error)
+	LiveId(ctx context.Context, id int64) (int64, error)
+	AttachLive(ctx context.Context, segmId int64, liveId int64) error
 }
 
 type MediaStorage interface {
@@ -76,9 +84,52 @@ func (s *Schedule) ScheduleCut(ctx context.Context, start time.Time, stop time.T
 		} else {
 			segments[i].Protected = isProt
 		}
+		if liveId, err := s.schStorage.LiveId(ctx, *segment.ID); err != nil {
+			log.Error("failed to get live id", slog.Int64("id", *segment.ID), sl.Err(err))
+			return []models.Segment{}, fmt.Errorf("%s: %w", op, err)
+		} else {
+			segments[i].LiveId = liveId
+		}
 	}
 
 	return segments, nil
+}
+
+// Lives returns all registered live streams
+// starting after given time point.
+func (s *Schedule) Lives(ctx context.Context, start time.Time) ([]models.Live, error) {
+	const op = "Schedule.Lives"
+
+	log := s.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	res, err := s.schStorage.GetLive(ctx, start)
+	if err != nil {
+		log.Error("failed to get lives", sl.Err(err))
+		return []models.Live{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return res, nil
+}
+
+// NewLive register new live stream.
+func (s *Schedule) NewLive(ctx context.Context, live models.Live) (int64, error) {
+	const op = "Schedule.NewLive"
+
+	log := s.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	id, err := s.schStorage.NewLive(ctx, live)
+	if err != nil {
+		log.Error("failed to register live", sl.Err(err))
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return id, nil
 }
 
 // NewSegment registers new segment in schedule
@@ -190,8 +241,18 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 
 	// Set segment protection.
 	if err := s.schStorage.ProtectSegment(ctx, id); err != nil {
-		log.Error("failed to set segment protection", sl.Err(err))
-		return 0, fmt.Errorf("%s: %w", op, err)
+		if errors.Is(err, storage.ErrSegmentAlreadyProtected) {
+			log.Warn("segment already protected", slog.Int64("id", id))
+		} else {
+			log.Error("failed to set segment protection", sl.Err(err))
+			return 0, fmt.Errorf("%s: %w", op, err)
+		}
+	}
+
+	if segment.LiveId != 0 {
+		if err := s.schStorage.AttachLive(ctx, id, segment.LiveId); err != nil {
+			log.Error("failed to attach segment to live", slog.Int64("id", id), slog.Int64("liveId", segment.LiveId), sl.Err(err))
+		}
 	}
 
 	log.Debug("protected")
@@ -210,8 +271,6 @@ func (s *Schedule) Segment(ctx context.Context, id int64) (models.Segment, error
 		slog.String("op", op),
 		slog.String("editorname", models.RootLogin),
 	)
-
-	log.Info("get segment", slog.Int64("id", id))
 
 	segment, err := s.schStorage.Segment(ctx, id)
 	if err != nil {
@@ -238,7 +297,13 @@ func (s *Schedule) Segment(ctx context.Context, id int64) (models.Segment, error
 		return models.Segment{}, fmt.Errorf("%s: %w", op, err)
 	}
 
+	liveId, err := s.schStorage.LiveId(ctx, id)
+	if err != nil {
+		log.Error("failed to check segment id", slog.Int64("id", id), sl.Err(err))
+	}
+
 	segment.Protected = isProt
+	segment.LiveId = liveId
 
 	return segment, nil
 }

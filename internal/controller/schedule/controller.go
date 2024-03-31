@@ -20,6 +20,7 @@ type scheduleController struct {
 
 type Schedule interface {
 	ScheduleCut(ctx context.Context, start time.Time, stop time.Time) ([]models.Segment, error)
+	Lives(ctx context.Context, start time.Time) ([]models.Live, error)
 	NewSegment(ctx context.Context, segment models.Segment) (int64, error)
 	Segment(ctx context.Context, id int64) (models.Segment, error)
 	DeleteSegment(ctx context.Context, id int64) error
@@ -47,6 +48,8 @@ func New(
 	app := fiber.New()
 
 	app.Use(jwtC.AuthRequired())
+
+	app.Get("/lives", schCtr.live)
 
 	app.Get("/", schCtr.scheduleCut)
 	app.Post("/", schCtr.newSegment)
@@ -90,6 +93,24 @@ func (schCtr *scheduleController) scheduleCut(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"segments": segments,
+	})
+}
+
+// live returns all registered live streams
+// starting after given time point.
+func (schCtr *scheduleController) live(c *fiber.Ctx) error {
+	start := time.Date(0, 0, 0, 0, 0, 0, 0, time.Local)
+	if i := c.QueryInt("start"); i != 0 {
+		start = time.Unix(int64(i), 0)
+	}
+
+	res, err := schCtr.schSrv.Lives(context.TODO(), start)
+	if err != nil {
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"lives": res,
 	})
 }
 

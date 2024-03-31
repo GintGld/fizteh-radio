@@ -150,6 +150,71 @@ func TestCreateSegmentCreateIntersections(t *testing.T) {
 		Raw()
 }
 
+func TestCreateSegmentWithLive(t *testing.T) {
+	token, err := suite.RootLogin()
+	require.NoError(t, err)
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   cfg.Address,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	// WARN: db should have with id 1
+
+	rawLives := e.GET("/schedule/lives").
+		WithHeader("Authorization", "Bearer "+token).
+		Expect().
+		Status(200).
+		Body().
+		Raw()
+
+	var lives struct {
+		Lives []models.Live `json:"lives"`
+	}
+
+	err = json.Unmarshal([]byte(rawLives), &lives)
+	require.NoError(t, err)
+
+	require.Greater(t, len(lives.Lives), 0)
+	live := lives.Lives[0]
+
+	// Create new media
+	media := randomMedia()
+	mediaStr, err := json.Marshal(media)
+	require.NoError(t, err)
+
+	rawMediaID := e.POST("/library/media").
+		WithHeader("Authorization", "Bearer "+token).
+		WithMultipart().
+		WithFile("source", sourceFile).
+		WithFormField("media", string(mediaStr)).
+		Expect().
+		Status(200).
+		JSON().
+		Path("$.id").
+		Number().
+		Raw()
+
+	segment := randomSegment()
+	segment.MediaID = ptr.Ptr(int64(rawMediaID))
+	segment.Protected = true
+	segment.LiveId = live.ID
+
+	res := e.POST("/schedule").
+		WithHeader("Authorization", "Bearer "+token).
+		WithJSON(map[string]models.Segment{
+			"segment": segment,
+		}).
+		Expect()
+
+	res.Status(200).
+		JSON().
+		Object().
+		Keys().
+		ContainsOnly("id")
+}
+
 func TestGetSegment(t *testing.T) {
 	token, err := suite.RootLogin()
 	require.NoError(t, err)
@@ -277,6 +342,92 @@ func TestGetProtectedSegment(t *testing.T) {
 	json.Path("$.segment.mediaID").Number().IsEqual(mediaID)
 	json.Path("$.segment.beginCut").Number().IsEqual(*segment.BeginCut)
 	json.Path("$.segment.stopCut").Number().IsEqual(*segment.StopCut)
+	json.Path("$.segment.protected").Boolean().IsEqual(true)
+
+	gotTime, err := time.Parse(
+		"2006-01-02T15:04:05.999999999-07:00",
+		json.Path("$.segment.start").String().Raw(),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, segment.Start.UnixMilli(), gotTime.UnixMilli())
+}
+
+func TestGetLiveSegment(t *testing.T) {
+	token, err := suite.RootLogin()
+	require.NoError(t, err)
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   cfg.Address,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	// WARN: db should have at least on live obj
+
+	rawLives := e.GET("/schedule/lives").
+		WithHeader("Authorization", "Bearer "+token).
+		Expect().
+		Status(200).
+		Body().
+		Raw()
+
+	var lives struct {
+		Lives []models.Live `json:"lives"`
+	}
+
+	err = json.Unmarshal([]byte(rawLives), &lives)
+	require.NoError(t, err)
+
+	require.Greater(t, len(lives.Lives), 0)
+	live := lives.Lives[0]
+
+	// Create new media
+	media := randomMedia()
+	mediaStr, err := json.Marshal(media)
+	require.NoError(t, err)
+
+	rawMediaID := e.POST("/library/media").
+		WithHeader("Authorization", "Bearer "+token).
+		WithMultipart().
+		WithFile("source", sourceFile).
+		WithFormField("media", string(mediaStr)).
+		Expect().
+		Status(200).
+		JSON().
+		Path("$.id").
+		Number().
+		Raw()
+
+	segment := randomSegment()
+	segment.MediaID = ptr.Ptr(int64(rawMediaID))
+	segment.Protected = true
+	segment.LiveId = live.ID
+
+	res := e.POST("/schedule").
+		WithHeader("Authorization", "Bearer "+token).
+		WithJSON(map[string]models.Segment{
+			"segment": segment,
+		}).
+		Expect()
+
+	rawId := res.Status(200).
+		JSON().
+		Path("$.id").
+		Number().
+		Raw()
+
+	json := e.GET("/schedule/{id}", int(rawId)).
+		WithHeader("Authorization", "Bearer "+token).
+		Expect().
+		Status(200).
+		JSON()
+
+	json.Object().Keys().ContainsOnly("segment")
+	json.Path("$.segment").Object().Keys().ContainsOnly("id", "mediaID", "start", "beginCut", "stopCut", "protected", "liveId")
+	json.Path("$.segment.mediaID").Number().IsEqual(int(rawMediaID))
+	json.Path("$.segment.beginCut").Number().IsEqual(*segment.BeginCut)
+	json.Path("$.segment.stopCut").Number().IsEqual(*segment.StopCut)
+	json.Path("$.segment.liveId").Number().IsEqual(segment.LiveId)
 	json.Path("$.segment.protected").Boolean().IsEqual(true)
 
 	gotTime, err := time.Parse(

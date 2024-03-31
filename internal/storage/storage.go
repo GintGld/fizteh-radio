@@ -13,4 +13,6 @@ var (
 	ErrTagNotFound = errors.New("tag not found")
 
 	ErrSegmentNotFound = errors.New("segment not found")
+	ErrSegmentAlreadyProtected      = errors.New("segment already protected")
+	ErrSegmentAlreadyAttachedToLive = errors.New("segment already attach to live")
 )

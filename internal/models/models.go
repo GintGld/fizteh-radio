@@ -77,6 +77,13 @@ type Segment struct {
 	BeginCut  *time.Duration `json:"beginCut"`
 	StopCut   *time.Duration `json:"stopCut"`
 	Protected bool           `json:"protected"`
+	LiveId    int64          `json:"liveId,omitempty"`
+}
+
+type Live struct {
+	ID    int64     `json:"id"`
+	Name  string    `json:"name"`
+	Start time.Time `json:"start"`
 }
 
 // End returns time of segment end (UTC).
