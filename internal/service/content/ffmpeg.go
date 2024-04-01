@@ -12,6 +12,7 @@ import (
 
 	"github.com/GintGld/fizteh-radio/internal/lib/ffmpeg"
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
+	"github.com/GintGld/fizteh-radio/internal/lib/utils/writer"
 	"github.com/GintGld/fizteh-radio/internal/models"
 )
 
@@ -24,25 +25,6 @@ const (
 	waitBeforeDelete = 15 * time.Second
 )
 
-type byteWriter struct {
-	data []byte
-}
-
-func newWriter() *byteWriter {
-	return &byteWriter{
-		data: make([]byte, 0),
-	}
-}
-
-func (b *byteWriter) Write(data []byte) (int, error) {
-	b.data = append(b.data, data...)
-	return len(data), nil
-}
-
-func (b *byteWriter) String() string {
-	return string(b.data)
-}
-
 // Generate segments
 func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error {
 	const op = "Content.generateDASHFiles"
@@ -52,7 +34,7 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 	)
 
 	// target path
-	path := c.path + "/" + ffmpeg.Dir(s)
+	path := c.path + "/" + ffmpeg.Dir(*s.ID)
 
 	// check if content already exists
 	if fileInfo, err := os.Stat(path); err == nil {
@@ -118,30 +100,30 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 
 	startString := strconv.FormatFloat(s.BeginCut.Seconds(), 'g', -1, 64)
 	stopString := strconv.FormatFloat(s.StopCut.Seconds(), 'g', -1, 64)
-	durationString := strconv.FormatFloat(c.chunkLenght.Seconds(), 'g', -1, 64)
+	durationString := strconv.FormatFloat(c.chunkLength.Seconds(), 'g', -1, 64)
 
 	cmd := exec.Command(
-		"ffmpeg",           //						call converter
-		"-hide_banner",     //						hide banner
-		"-y",               //						force rewriting file
-		"-ss", startString, //						start cut
-		"-to", stopString, //						stop cut
-		"-i", filePath, //							input file
-		"-c:a", "aac", //							choose codec
-		"-b:a", strconv.Itoa(bitrate), //			choose bitrate (TODO: make different bitrate to enable bitrateSwitching)
-		"-ac", strconv.Itoa(2), //					number of channels (1 - mono, 2 - stereo)
-		"-ar", strconv.Itoa(samplingRate), // 		sampling frequency (usually 44100/48000)
-		"-dash_segment_type", "mp4", //				container segments format
-		"-use_template", "1", //					use template instead of enumerate (shorter output)
-		"-use_timeline", "0", //					disable more information about timing for all segments
-		"-init_seg_name", ffmpeg.InitFile(s), //	template for initialization segment
-		"-media_seg_name", ffmpeg.ChunkFile(s), //	template for data segments
-		"-seg_duration", durationString, //			duration of each segment
-		"-f", "dash", //							choose dash format
-		c.path+"/"+mpdFile, //						output file
+		"ffmpeg",           //							call converter
+		"-hide_banner",     //							hide banner
+		"-y",               //							force rewriting file
+		"-ss", startString, //							start cut
+		"-to", stopString, //							stop cut
+		"-i", filePath, //								input file
+		"-c:a", "aac", //								choose codec
+		"-b:a", strconv.Itoa(bitrate), //				choose bitrate (TODO: make different bitrate to enable bitrateSwitching)
+		"-ac", strconv.Itoa(2), //						number of channels (1 - mono, 2 - stereo)
+		"-ar", strconv.Itoa(samplingRate), // 			sampling frequency (usually 44100/48000)
+		"-dash_segment_type", "mp4", //					container segments format
+		"-use_template", "1", //						use template instead of enumerate (shorter output)
+		"-use_timeline", "0", //						disable more information about timing for all segments
+		"-init_seg_name", ffmpeg.InitFile(*s.ID), //	template for initialization segment
+		"-media_seg_name", ffmpeg.ChunkFile(*s.ID), //	template for data segments
+		"-seg_duration", durationString, //				duration of each segment
+		"-f", "dash", //								choose dash format
+		c.path+"/"+mpdFile, //							output file
 	)
 
-	errorWriter := newWriter()
+	errorWriter := writer.New()
 	cmd.Stderr = errorWriter
 
 	if err := cmd.Run(); err != nil {
@@ -171,7 +153,7 @@ func (c *Content) deleteDASHFiles(s models.Segment) error {
 		slog.String("op", op),
 	)
 
-	path := c.path + "/" + ffmpeg.Dir(s)
+	path := c.path + "/" + ffmpeg.Dir(*s.ID)
 	if err := os.RemoveAll(path); err != nil {
 		log.Error("failed to delete dash files", slog.String("path", path), sl.Err(err))
 		return err
@@ -202,6 +184,7 @@ func (c *Content) deleteCache() error {
 	errAll := make([]error, 0)
 	for _, file := range files {
 		err = os.Remove(cacheDir + "/" + file.Name())
+		log.Debug("delete", slog.String("file", cacheDir+"/"+file.Name()))
 		if err != nil {
 			log.Error(
 				"failed to delete",

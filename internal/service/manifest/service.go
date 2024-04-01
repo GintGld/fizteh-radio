@@ -17,8 +17,13 @@ import (
 	"github.com/GintGld/fizteh-radio/internal/models"
 )
 
+const (
+	scale = 1000
+)
+
 type Manifest struct {
 	log          *slog.Logger
+	live         Live
 	path         string
 	baseUrl      string
 	startTime    time.Time
@@ -30,9 +35,14 @@ type Manifest struct {
 	lastPlayedPeriod int
 }
 
+type Live interface {
+	Info() models.Live
+}
+
 // New returns new Manifest
 func New(
 	log *slog.Logger,
+	live Live,
 	path string,
 	baseUrl string,
 	startTime time.Time,
@@ -66,6 +76,7 @@ func New(
 
 	return &Manifest{
 		log:              log,
+		live:             live,
 		path:             path,
 		baseUrl:          baseUrl,
 		startTime:        startTime,
@@ -122,6 +133,13 @@ main_loop:
 			}
 		}
 
+		var presentationShift uint64 = 0
+
+		if segment.LiveId != 0 {
+			live := m.live.Info()
+			presentationShift = uint64(live.Offset - live.Delay)
+		}
+
 		m.man.Periods[i] = &mpd.Period{
 			ID:       strconv.Itoa(i + 1 + m.lastPlayedPeriod),
 			Duration: mpd.Duration(stopCut - *segment.BeginCut),
@@ -137,11 +155,12 @@ main_loop:
 					Bandwidth:         ptr.Ptr[int64](96000),
 					Codecs:            ptr.Ptr("mp4a.40.2"),
 					SegmentTemplate: &mpd.SegmentTemplate{
-						StartNumber:    ptr.Ptr[int64](1),
-						Initialization: ptr.Ptr(ffmpeg.InitFile(segment)),
-						Media:          ptr.Ptr(ffmpeg.ChunkFile(segment)),
-						Duration:       ptr.Ptr(m.chunkLength.Milliseconds()),
-						Timescale:      ptr.Ptr[int64](1000),
+						StartNumber:            ptr.Ptr[int64](1),
+						PresentationTimeOffset: ptr.Ptr(presentationShift),
+						Initialization:         ptr.Ptr(ffmpeg.InitFile(*segment.ID)),
+						Media:                  ptr.Ptr(ffmpeg.ChunkFile(*segment.ID)),
+						Duration:               ptr.Ptr(m.chunkLength.Milliseconds()),
+						Timescale:              ptr.Ptr[int64](scale),
 					},
 					CommonAttributesAndElements: mpd.CommonAttributesAndElements{
 						MimeType: ptr.Ptr(mpd.DASH_MIME_TYPE_AUDIO_MP4),
@@ -177,7 +196,7 @@ func (m *Manifest) updateLastPlayedPeriod() {
 
 	now := time.Now()
 
-	// no periods were played untill now
+	// no periods were played until now
 	if now.Before(m.startTime.Add(time.Duration(*m.man.Periods[0].Start))) {
 		return
 	}

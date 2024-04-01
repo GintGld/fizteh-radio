@@ -16,6 +16,8 @@ type Config struct {
 	HTTPServer    `yaml:"http_server"`
 	SourceStorage `yaml:"source_storage"`
 	Dash          `yaml:"dash"`
+	DJ            `yaml:"dj"`
+	Live          `yaml:"live"`
 }
 
 type HTTPServer struct {
@@ -27,6 +29,7 @@ type HTTPServer struct {
 }
 
 type Dash struct {
+	DashOnStart      bool          `yaml:"dash_on_start" env-default:"false"`
 	ManifestPath     string        `yaml:"manifest_path" env-required:"true"`
 	ContentDir       string        `yaml:"content_dir" env-required:"true"`
 	ChunkLength      time.Duration `yaml:"chunk_length" env-default:"2s"`
@@ -41,6 +44,17 @@ type SourceStorage struct {
 	SourcePath   string `yaml:"path" env-required:"true"`
 	NestingDepth int    `yaml:"nesting_depth" env-required:"true"`
 	IdLength     int    `yaml:"id_length" env-required:"true"`
+}
+
+type DJ struct {
+	DjOnStart   bool   `yaml:"dj_on_start" env-default:"false"`
+	DjCacheFile string `yaml:"cache_file" env-required:"true"`
+}
+
+type Live struct {
+	Delay        time.Duration `yaml:"delay" env-default:"2s"`
+	StepDuration time.Duration `yaml:"step_duration" env-default:"5m"`
+	ScriptPath   string        `yaml:"script_path" env_required:"true"`
 }
 
 func MustLoad() *Config {

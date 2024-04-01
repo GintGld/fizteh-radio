@@ -147,6 +147,29 @@ func (s *Storage) Segment(ctx context.Context, id int64) (models.Segment, error)
 	return segment, nil
 }
 
+// UpdateSegmentTiming updates
+// all fields referred to time.
+func (s *Storage) UpdateSegmenTiming(ctx context.Context, segment models.Segment) error {
+	const op = "Storage.UpdateSegmentiming"
+
+	stmt, err := s.db.Prepare("UPDATE schedule SET start_mus=?, begin_cut=?, stop_cut=? WHERE id=?")
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	if _, err := stmt.ExecContext(ctx,
+		segment.Start.UnixMicro(),
+		segment.BeginCut.Microseconds(),
+		segment.StopCut.Microseconds(),
+		*segment.ID,
+	); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
 // DeleteSegment deletes segmnt by its period.
 func (s *Storage) DeleteSegment(ctx context.Context, id int64) error {
 	const op = "storage.sqlite.DeleteSegment"
@@ -220,13 +243,19 @@ func (s *Storage) IsSegmentProtected(ctx context.Context, id int64) (bool, error
 func (s *Storage) NewLive(ctx context.Context, live models.Live) (int64, error) {
 	const op = "storage.NewLive"
 
-	stmt, err := s.db.Prepare("INSERT INTO live_stream(name, start) VALUES(?, ?)")
+	stmt, err := s.db.Prepare("INSERT INTO live_stream(name, start, stop, delay, offset) VALUES(?, ?, ?, ?, ?)")
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 	defer stmt.Close()
 
-	res, err := stmt.ExecContext(ctx, live.Name, live.Start)
+	res, err := stmt.ExecContext(ctx,
+		live.Name,
+		live.Start.UnixMicro(),
+		live.Stop.UnixMicro(),
+		live.Delay.Microseconds(),
+		live.Offset.Microseconds(),
+	)
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
@@ -239,12 +268,29 @@ func (s *Storage) NewLive(ctx context.Context, live models.Live) (int64, error) 
 	return id, nil
 }
 
+// Set time when live stopped.
+func (s *Storage) SetLiveStop(ctx context.Context, live models.Live) error {
+	const op = "Storage.SetLiveStop"
+
+	stmt, err := s.db.Prepare("UPDATE live_stream SET stop=? WHERE id=?")
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	defer stmt.Close()
+
+	if _, err := stmt.ExecContext(ctx, live.Stop.UnixMicro(), live.ID); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
 // GetLive returns all registered live streams
-// starting after given time point.
+// stopping after given time point.
 func (s *Storage) GetLive(ctx context.Context, start time.Time) ([]models.Live, error) {
 	const op = "Storage.GetLive"
 
-	stmt, err := s.db.Prepare("SELECT id, name, start FROM live_stream WHERE start >= ?")
+	stmt, err := s.db.Prepare("SELECT id, name, start, stop, delay, offset FROM live_stream WHERE stop >= ?")
 	if err != nil {
 		return []models.Live{}, fmt.Errorf("%s: %w", op, err)
 	}
@@ -257,12 +303,18 @@ func (s *Storage) GetLive(ctx context.Context, start time.Time) ([]models.Live, 
 
 	lives := make([]models.Live, 0)
 	live := models.Live{}
-	var startMs int64
+	var (
+		startMs, stopMs, delayMs, offsetMs int64
+	)
+
 	for rows.Next() {
-		if err := rows.Scan(&live.ID, &live.Name, &startMs); err != nil {
+		if err := rows.Scan(&live.ID, &live.Name, &startMs, &stopMs, &delayMs, &offsetMs); err != nil {
 			return []models.Live{}, fmt.Errorf("%s: %w", op, err)
 		}
 		live.Start = time.Unix(startMs/1000000, startMs%1000000*1000)
+		live.Stop = time.Unix(stopMs/1000000, stopMs%1000000*1000)
+		live.Delay = time.Duration(delayMs * 1000)
+		live.Offset = time.Duration(offsetMs * 1000)
 		lives = append(lives, live)
 	}
 

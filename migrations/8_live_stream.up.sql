@@ -1,7 +1,10 @@
 CREATE TABLE IF NOT EXISTS live_stream (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
-    start INTEGER NOT NULL
+    start INTEGER NOT NULL,
+    stop INTEGER NOT NULL,
+    delay INTEGER NOT NULL,
+    offset INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS schedule_live (

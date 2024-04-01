@@ -16,6 +16,7 @@ import (
 type scheduleController struct {
 	schSrv Schedule
 	dj     DJ
+	live   Live
 }
 
 type Schedule interface {
@@ -35,21 +36,26 @@ type DJ interface {
 	Stop()
 }
 
+type Live interface {
+	Start(ctx context.Context, live models.Live) error
+	Stop()
+}
+
 func New(
 	schSrv Schedule,
 	dj DJ,
+	live Live,
 	jwtC *jwtController.JWT,
 ) *fiber.App {
 	schCtr := scheduleController{
 		schSrv: schSrv,
 		dj:     dj,
+		live:   live,
 	}
 
 	app := fiber.New()
 
 	app.Use(jwtC.AuthRequired())
-
-	app.Get("/lives", schCtr.live)
 
 	app.Get("/", schCtr.scheduleCut)
 	app.Post("/", schCtr.newSegment)
@@ -62,6 +68,10 @@ func New(
 	app.Get("/dj/start", schCtr.startDJ)
 	app.Get("dj/status", schCtr.isPlaying)
 	app.Get("/dj/stop", schCtr.stopDJ)
+
+	app.Get("/lives", schCtr.lives)
+	app.Post("/live/start", schCtr.startLive)
+	app.Get("/live/stop", schCtr.stopLive)
 
 	return app
 }
@@ -97,8 +107,8 @@ func (schCtr *scheduleController) scheduleCut(c *fiber.Ctx) error {
 }
 
 // live returns all registered live streams
-// starting after given time point.
-func (schCtr *scheduleController) live(c *fiber.Ctx) error {
+// stopping after given time point.
+func (schCtr *scheduleController) lives(c *fiber.Ctx) error {
 	start := time.Date(0, 0, 0, 0, 0, 0, 0, time.Local)
 	if i := c.QueryInt("start"); i != 0 {
 		start = time.Unix(int64(i), 0)
@@ -152,6 +162,11 @@ func (schCtr *scheduleController) newSegment(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrMediaNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "media not found",
+			})
+		}
+		if errors.Is(err, service.ErrLiveSegmentHasMediaId) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "live segment can't have media id",
 			})
 		}
 		if errors.Is(err, service.ErrCutOutOfBounds) {
@@ -281,6 +296,38 @@ func (schCtr *scheduleController) isPlaying(c *fiber.Ctx) error {
 // stopDJ stops autodj.
 func (schCtr *scheduleController) stopDJ(c *fiber.Ctx) error {
 	go schCtr.dj.Stop()
+
+	return c.SendStatus(fiber.StatusOK)
+}
+
+// startLive start live streaming.
+func (schCtr *scheduleController) startLive(c *fiber.Ctx) error {
+	var request struct {
+		Live models.Live `json:"live"`
+	}
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	if request.Live.Name == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "name must be specified",
+		})
+	}
+
+	if request.Live.Start.Before(time.Now()) {
+		request.Live.Start = time.Now()
+	}
+
+	go schCtr.live.Start(context.TODO(), request.Live)
+
+	return c.SendStatus(fiber.StatusOK)
+}
+
+// stopLive stops live.
+func (schCtr *scheduleController) stopLive(c *fiber.Ctx) error {
+	schCtr.live.Stop()
 
 	return c.SendStatus(fiber.StatusOK)
 }

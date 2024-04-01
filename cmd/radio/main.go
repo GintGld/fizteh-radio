@@ -47,6 +47,12 @@ func main() {
 		cfg.ClientUpdateFreq,
 		cfg.DashUpdateFreq,
 		cfg.DashHorizon,
+		cfg.DashOnStart,
+		cfg.DjOnStart,
+		cfg.DjCacheFile,
+		cfg.Delay,
+		cfg.StepDuration,
+		cfg.ScriptPath,
 	)
 
 	// Run server
@@ -56,7 +62,7 @@ func main() {
 
 	// Graceful shutdown
 	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
+	signal.Notify(stop, syscall.SIGTERM)
 
 	<-stop
 

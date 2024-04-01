@@ -30,6 +30,7 @@ type ScheduleStorage interface {
 	ClearSchedule(ctx context.Context, stamp time.Time) error
 	// Single segment
 	SaveSegment(ctx context.Context, segment models.Segment) (int64, error)
+	UpdateSegmenTiming(ctx context.Context, segment models.Segment) error
 	Segment(ctx context.Context, period int64) (models.Segment, error)
 	DeleteSegment(ctx context.Context, period int64) error
 	// Segment protection
@@ -38,6 +39,7 @@ type ScheduleStorage interface {
 	// Segment live
 	GetLive(ctx context.Context, start time.Time) ([]models.Live, error)
 	NewLive(ctx context.Context, live models.Live) (int64, error)
+	SetLiveStop(ctx context.Context, live models.Live) error
 	LiveId(ctx context.Context, id int64) (int64, error)
 	AttachLive(ctx context.Context, segmId int64, liveId int64) error
 }
@@ -96,7 +98,7 @@ func (s *Schedule) ScheduleCut(ctx context.Context, start time.Time, stop time.T
 }
 
 // Lives returns all registered live streams
-// starting after given time point.
+// stopping after given time point.
 func (s *Schedule) Lives(ctx context.Context, start time.Time) ([]models.Live, error) {
 	const op = "Schedule.Lives"
 
@@ -132,6 +134,22 @@ func (s *Schedule) NewLive(ctx context.Context, live models.Live) (int64, error)
 	return id, nil
 }
 
+func (s *Schedule) SetLiveStop(ctx context.Context, live models.Live) error {
+	const op = "Schedule.SetLiveStop"
+
+	log := s.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	if err := s.schStorage.SetLiveStop(ctx, live); err != nil {
+		log.Error("failed to set live stop", slog.Int64("id", live.ID), sl.Err(err))
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
 // NewSegment registers new segment in schedule
 // if media for segment does not exists returns error.
 func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int64, error) {
@@ -142,35 +160,42 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 		slog.String("editorname", models.RootLogin),
 	)
 
-	media, err := s.mediaStorage.Media(ctx, *segment.MediaID)
-	if err != nil {
-		if errors.Is(err, storage.ErrMediaNotFound) {
-			log.Warn("media not found", slog.Int64("id", *segment.MediaID))
-			return 0, service.ErrMediaNotFound
-		}
-		log.Error("failed to get media", slog.Int64("id", *segment.MediaID), sl.Err(err))
-		return 0, fmt.Errorf("%s: %w", op, err)
-	}
-
 	// Check cut correctness
-	if *media.Duration < *segment.StopCut ||
-		*media.Duration < *segment.BeginCut ||
-		*segment.BeginCut < 0 ||
-		*segment.StopCut < 0 {
-		log.Warn(
-			"invalid cut (out of bounds)",
-			slog.Int64("beginCut", segment.BeginCut.Microseconds()),
-			slog.Int64("stopCut", segment.StopCut.Microseconds()),
-		)
-		return 0, service.ErrCutOutOfBounds
-	}
-	if *segment.BeginCut > *segment.StopCut {
-		log.Warn(
-			"invalid cut (start after stop)",
-			slog.Int64("beginCut", segment.BeginCut.Microseconds()),
-			slog.Int64("stopCut", segment.StopCut.Microseconds()),
-		)
-		return 0, service.ErrBeginAfterStop
+	// for non-live segments.
+	if *segment.MediaID != 0 {
+		if segment.LiveId != 0 {
+			log.Warn("live segment can't have media id", slog.Int64("id", *segment.MediaID))
+		}
+
+		media, err := s.mediaStorage.Media(ctx, *segment.MediaID)
+		if err != nil {
+			if errors.Is(err, storage.ErrMediaNotFound) {
+				log.Warn("media not found", slog.Int64("id", *segment.MediaID))
+				return 0, service.ErrMediaNotFound
+			}
+			log.Error("failed to get media", slog.Int64("id", *segment.MediaID), sl.Err(err))
+			return 0, fmt.Errorf("%s: %w", op, err)
+		}
+
+		if *media.Duration < *segment.StopCut ||
+			*media.Duration < *segment.BeginCut ||
+			*segment.BeginCut < 0 ||
+			*segment.StopCut < 0 {
+			log.Warn(
+				"invalid cut (out of bounds)",
+				slog.Int64("beginCut", segment.BeginCut.Microseconds()),
+				slog.Int64("stopCut", segment.StopCut.Microseconds()),
+			)
+			return 0, service.ErrCutOutOfBounds
+		}
+		if *segment.BeginCut > *segment.StopCut {
+			log.Warn(
+				"invalid cut (start after stop)",
+				slog.Int64("beginCut", segment.BeginCut.Microseconds()),
+				slog.Int64("stopCut", segment.StopCut.Microseconds()),
+			)
+			return 0, service.ErrBeginAfterStop
+		}
 	}
 
 	res, err := s.ScheduleCut(ctx, *segment.Start, segment.End())
@@ -249,18 +274,61 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 		}
 	}
 
+	log.Debug("protected")
+
 	if segment.LiveId != 0 {
+		log.Debug("segment is live, attaching")
 		if err := s.schStorage.AttachLive(ctx, id, segment.LiveId); err != nil {
 			log.Error("failed to attach segment to live", slog.Int64("id", id), slog.Int64("liveId", segment.LiveId), sl.Err(err))
+			return 0, fmt.Errorf("%s: %w", op, err)
 		}
 	}
-
-	log.Debug("protected")
 
 	chans.Notify(s.protectedSegmentsChan)
 	chans.Send(s.allSegmentsChan, segment)
 
 	return id, nil
+}
+
+// UpdateSegmentTiming updates
+// all fields referred to time.
+func (s *Schedule) UpdateSegmentTiming(ctx context.Context, segment models.Segment) error {
+	const op = "Schedule.UpdateSegmentTiming"
+
+	log := s.log.With(
+		slog.String("op", op),
+		slog.String("editorname", models.RootLogin),
+	)
+
+	if err := s.schStorage.UpdateSegmenTiming(ctx, segment); err != nil {
+		log.Error("failed to update segment timing", slog.Int64("id", *segment.ID), sl.Err(err))
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	res, err := s.ScheduleCut(ctx, *segment.Start, segment.End())
+	if err != nil {
+		log.Error("failed to get schedule cut", sl.Err(err))
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	if !segment.Protected && len(res) > 0 {
+		log.Warn("new not prot. segm has intersection(s)", slog.Any("res", res), slog.Time("start", *segment.Start), slog.Time("end", segment.End()))
+	}
+	if j := slices.IndexFunc(res, func(s models.Segment) bool { return s.Protected && *s.ID != *segment.ID }); j != -1 {
+		log.Warn(
+			"detected intersection of protected segments",
+			slog.String("found (start-stop)", fmt.Sprintf("%s - %s", res[j].Start.String(), res[j].End().String())),
+			slog.String("new (start-stop)", fmt.Sprintf("%s - %s", segment.Start.String(), segment.End().String())),
+		)
+		// FIXME handle this errors every where.
+		return service.ErrSegmentIntersection
+	}
+
+	if segment.Protected {
+		chans.Notify(s.protectedSegmentsChan)
+	}
+	chans.Send(s.allSegmentsChan, segment)
+
+	return nil
 }
 
 // Segment returns by its id

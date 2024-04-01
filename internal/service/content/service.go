@@ -14,7 +14,7 @@ import (
 type Content struct {
 	log         *slog.Logger
 	path        string
-	chunkLenght time.Duration
+	chunkLength time.Duration
 	media       Media
 	source      Source
 }
@@ -22,7 +22,7 @@ type Content struct {
 func New(
 	log *slog.Logger,
 	path string,
-	chunkLenght time.Duration,
+	chunkLength time.Duration,
 	media Media,
 	source Source,
 ) *Content {
@@ -38,7 +38,7 @@ func New(
 	return &Content{
 		log:         log,
 		path:        path,
-		chunkLenght: chunkLenght,
+		chunkLength: chunkLength,
 		media:       media,
 		source:      source,
 	}

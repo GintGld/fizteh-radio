@@ -16,6 +16,7 @@ import (
 	contentSrv "github.com/GintGld/fizteh-radio/internal/service/content"
 	dashSrv "github.com/GintGld/fizteh-radio/internal/service/dash"
 	jwtSrv "github.com/GintGld/fizteh-radio/internal/service/jwt"
+	liveSrv "github.com/GintGld/fizteh-radio/internal/service/live"
 	manSrv "github.com/GintGld/fizteh-radio/internal/service/manifest"
 	mediaSrv "github.com/GintGld/fizteh-radio/internal/service/media"
 	rootSrv "github.com/GintGld/fizteh-radio/internal/service/root"
@@ -58,6 +59,12 @@ func New(
 	clientUpdateFreq time.Duration,
 	dashUpdateFreq time.Duration,
 	dashHorizon time.Duration,
+	dashOnStart bool,
+	djOnStart bool,
+	djCacheFile string,
+	liveDelay time.Duration,
+	liveStep time.Duration,
+	liveScript string,
 ) *App {
 	// Create sevices
 	jwt := jwtSrv.New(secret)
@@ -106,9 +113,29 @@ func New(
 		sch2dashChan,
 		sch2djChan,
 	)
+	// AutoDJ
+	dj := djSrv.New(
+		log,
+		lib,
+		sch,
+		djCacheFile,
+		sch2djChan,
+		lib2djChan,
+	)
+	// Live streaming
+	live := liveSrv.New(
+		log,
+		sch,
+		liveDelay,
+		liveStep,
+		liveScript,
+		contentDir,
+		chunkLength,
+	)
 	// Dash manifest service
 	man := manSrv.New(
 		log,
+		live,
 		manPath,
 		"http://"+address+"/radio/content",
 		time.Now(),
@@ -135,14 +162,6 @@ func New(
 		sch,
 		sch2dashChan,
 	)
-	// AutoDJ
-	dj := djSrv.New(
-		log,
-		lib,
-		sch,
-		sch2djChan,
-		lib2djChan,
-	)
 
 	// Controller helper
 	jwtCtr := jwtCtr.New(secret)
@@ -158,7 +177,7 @@ func New(
 	app.Mount("/login", authCtr.New(auth))
 	app.Mount("/root", rootCtr.New(root, jwtCtr))
 	app.Mount("/library", mediaCtr.New(lib, src, jwtCtr, tmpDir))
-	app.Mount("/schedule", schCtr.New(sch, dj, jwtCtr))
+	app.Mount("/schedule", schCtr.New(sch, dj, live, jwtCtr))
 	app.Mount("/radio", dashCtr.New(manPath, contentDir, jwtCtr, dash))
 
 	// In debug mode there's no proxy that serves static files.
@@ -181,6 +200,13 @@ func New(
 
 			return c.SendFile(contentDir + "/" + id + "/" + file)
 		})
+	}
+
+	if dashOnStart {
+		go dash.Run(context.TODO())
+	}
+	if djOnStart {
+		go dj.Run(context.TODO())
 	}
 
 	return &App{

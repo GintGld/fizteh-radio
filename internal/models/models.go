@@ -81,9 +81,12 @@ type Segment struct {
 }
 
 type Live struct {
-	ID    int64     `json:"id"`
-	Name  string    `json:"name"`
-	Start time.Time `json:"start"`
+	ID     int64         `json:"id"`
+	Name   string        `json:"name"`
+	Start  time.Time     `json:"start"`
+	Stop   time.Time     `json:"stop"`
+	Delay  time.Duration `json:"-"`
+	Offset time.Duration `json:"-"`
 }
 
 // End returns time of segment end (UTC).

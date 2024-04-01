@@ -12,11 +12,19 @@ source_storage:
   nesting_depth: 5
   id_length: 8
 dash:
+  dash_on_start: true
   manifest_path: /radio/tmp/man/man.mpd
   content_dir: /radio/tmp/content
   chunk_length: 2s
-  buffer_time: 30s
-  buffer_depth: 5s
-  client_update_freq: 2s
-  dash_update_freq: 5s
-  dash_horizon: 5m
+  buffer_time: 4s
+  buffer_depth: 4s
+  client_update_freq: 1s
+  dash_update_freq: 1s
+  dash_horizon: 2m
+dj:
+  dj_on_start: true
+  cache_file: .cache/dj.json
+live:
+  delay: 5s
+  step_duration: 1m
+  script_path: /radio/scripts/dash.sh

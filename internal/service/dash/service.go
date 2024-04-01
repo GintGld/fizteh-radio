@@ -121,10 +121,12 @@ mainloop:
 			log.Error("failed to dump manifest")
 		}
 
-		// Create dash segments
+		// Create dash chunks for non-live segments.
 		for _, segment := range schedule {
-			if err := d.content.Generate(ctx, segment); err != nil {
-				log.Error("failed to generate content", slog.Int64("id", *segment.ID), sl.Err(err))
+			if segment.LiveId == 0 {
+				if err := d.content.Generate(ctx, segment); err != nil {
+					log.Error("failed to generate content", slog.Int64("id", *segment.ID), sl.Err(err))
+				}
 			}
 		}
 

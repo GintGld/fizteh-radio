@@ -2,10 +2,13 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"math/rand"
+	"os"
 	"slices"
 	"sync"
 	"time"
@@ -59,16 +62,18 @@ type AutoDJ struct {
 	currentId         int64
 	timerId           int
 	// stubWasUsed       bool
+	cacheFile string
 }
 
 func New(
 	log *slog.Logger,
 	media MediaSearcher,
 	sch Schedule,
+	cacheFile string,
 	scheduleChan <-chan struct{},
 	mediaChan <-chan struct{},
 ) *AutoDJ {
-	return &AutoDJ{
+	a := &AutoDJ{
 		log:   log,
 		media: media,
 		sch:   sch,
@@ -81,9 +86,14 @@ func New(
 		},
 		scheduleChan: scheduleChan,
 		mediaChan:    mediaChan,
+		cacheFile:    cacheFile,
 		confChan:     make(chan struct{}),
 		stopChan:     make(chan struct{}),
 	}
+
+	a.recoverConfig()
+
+	return a
 }
 
 type MediaSearcher interface {
@@ -97,14 +107,15 @@ type Schedule interface {
 	ClearSchedule(ctx context.Context, from time.Time) error
 }
 
-// SetCriteria updates AutoDJ settings.
+// SetConfig updates AutoDJ settings.
 func (a *AutoDJ) SetConfig(conf models.AutoDJConfig) {
 	a.confMutex.Lock()
+	defer a.confMutex.Unlock()
 	a.conf = conf
 	if a.IsPlaying() {
 		chans.Notify(a.confChan)
 	}
-	a.confMutex.Unlock()
+	a.saveConfig()
 }
 
 // Config returns actual AutoDJ settings.
@@ -160,16 +171,10 @@ dj_start:
 
 	a.timerId = 0
 
-	// If some segment is playing,
-	// postpone dj start till the end
-	// of this segment.
-	// Repeat this untill, dj will not
-	// "step on empty space"
 	var (
 		s   models.Segment
 		err error
 	)
-
 	if s, err = a.nowPlaying(ctx); err == nil {
 		log.Debug("something is playing now, start after that")
 		a.timeHorizon = s.End()
@@ -180,6 +185,7 @@ dj_start:
 	} else {
 		if errors.Is(err, service.ErrSegmentNotFound) {
 			a.timeHorizon = time.Now()
+			log.Debug("nothing playing", slog.Time("horizon", a.timeHorizon))
 		} else {
 			log.Error("failed to call a.nowPlaying", sl.Err(err))
 			return fmt.Errorf("%s: %w", op, err)
@@ -382,7 +388,7 @@ func (a *AutoDJ) getTimer(ctx context.Context) (<-chan time.Time, error) {
 	a.timerId++
 
 	// Take first dj period in future
-	// wait untill it start playing
+	// wait until it start playing
 	j := slices.IndexFunc(sch, func(s models.Segment) bool {
 		return !s.Protected && s.Start.After(time.Now())
 	})
@@ -490,6 +496,22 @@ func (a *AutoDJ) updateProtected(ctx context.Context) error {
 		if s.Protected {
 			a.protectedSegments = append(a.protectedSegments, s)
 		}
+	}
+
+	// If nothig plays now,
+	// set time horizon to now
+	if _, err := a.nowPlaying(ctx); err != nil {
+		if errors.Is(err, service.ErrSegmentNotFound) {
+			log.Warn("nothing playing now, set horizon to now")
+			a.timeHorizon = now
+			if err := a.sch.ClearSchedule(ctx, now); err != nil {
+				log.Error("failed to clear schedule", sl.Err(err))
+				return fmt.Errorf("%s: %w", op, err)
+			}
+			return nil
+		}
+		log.Error("failed to get current playing segment", sl.Err(err))
+		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	if len(sch) == 0 {
@@ -607,6 +629,64 @@ func (a *AutoDJ) nearestProtectedSegment() int {
 		}
 	}
 	return -1
+}
+
+// recoverConfig tries to read config file.
+func (a *AutoDJ) recoverConfig() {
+	const op = "AutoDj.recoverConfig"
+
+	log := a.log.With(
+		slog.String("op", op),
+		slog.String("file", a.cacheFile),
+	)
+
+	file, err := os.Open(a.cacheFile)
+	if err != nil {
+		log.Warn("failed to open file", sl.Err(err))
+		return
+	}
+	defer file.Close()
+
+	body, err := io.ReadAll(file)
+	if err != nil {
+		log.Error("failed to read file", sl.Err(err))
+		return
+	}
+
+	if err := json.Unmarshal(body, &a.conf); err != nil {
+		log.Error("failed to parse config", sl.Err(err))
+		a.conf = models.AutoDJConfig{}
+		return
+	}
+}
+
+// saveConfig saves config to a file.
+// does not use mutex, since called only
+// from SetConfing, which already mutex config.
+func (a *AutoDJ) saveConfig() {
+	const op = "AutoDJ.saveConfig"
+
+	log := a.log.With(
+		slog.String("op", op),
+		slog.String("file", a.cacheFile),
+	)
+
+	file, err := os.OpenFile(a.cacheFile, os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		log.Error("failed to open file", sl.Err(err))
+		return
+	}
+	defer file.Close()
+
+	body, err := json.Marshal(a.conf)
+	if err != nil {
+		log.Error("failed to marshal config", sl.Err(err))
+		return
+	}
+
+	if _, err := file.Write(body); err != nil {
+		log.Error("failed to write to file", sl.Err(err))
+	}
 }
 
 // IsPlaying returns autodj status.

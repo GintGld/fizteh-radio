@@ -34,6 +34,12 @@ func New(
 	clientUpdateFreq time.Duration,
 	dashUpdateFreq time.Duration,
 	dashHorizon time.Duration,
+	dashOnStart bool,
+	djOnStart bool,
+	djCacheFile string,
+	liveDelay time.Duration,
+	liveStep time.Duration,
+	liveScript string,
 ) *App {
 	storage, err := sqlite.New(storagePath)
 	if err != nil {
@@ -61,6 +67,12 @@ func New(
 		clientUpdateFreq,
 		dashUpdateFreq,
 		dashHorizon,
+		dashOnStart,
+		djOnStart,
+		djCacheFile,
+		liveDelay,
+		liveStep,
+		liveScript,
 	)
 
 	return &App{
