@@ -28,6 +28,7 @@ RUN --mount=type=cache,target=/var/cache/apk \
         ca-certificates \
         tzdata \
         ffmpeg \
+        bash \
         && \
         update-ca-certificates
 
