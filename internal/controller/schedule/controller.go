@@ -38,6 +38,7 @@ type DJ interface {
 
 type Live interface {
 	Start(ctx context.Context, live models.Live) error
+	Info() models.Live
 	Stop()
 }
 
@@ -71,6 +72,7 @@ func New(
 
 	app.Get("/lives", schCtr.lives)
 	app.Post("/live/start", schCtr.startLive)
+	app.Get("/live/info", schCtr.liveInfo)
 	app.Get("/live/stop", schCtr.stopLive)
 
 	return app
@@ -323,6 +325,16 @@ func (schCtr *scheduleController) startLive(c *fiber.Ctx) error {
 	go schCtr.live.Start(context.TODO(), request.Live)
 
 	return c.SendStatus(fiber.StatusOK)
+}
+
+// liveInfo returns info about
+// current live.
+func (schCtr *scheduleController) liveInfo(c *fiber.Ctx) error {
+	live := schCtr.live.Info()
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"live": live,
+	})
 }
 
 // stopLive stops live.

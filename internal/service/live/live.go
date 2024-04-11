@@ -205,6 +205,7 @@ main_loop:
 	}
 
 	log.Info("stopped live")
+	l.live = models.Live{}
 
 	return nil
 }
@@ -313,7 +314,7 @@ func (l *Live) stopCmd() error {
 // clearSpace deletes protectected
 // segments in given interval.
 func (l *Live) clearSpace(ctx context.Context, start, stop time.Time) error {
-	const op = "Live.clearSpacectx, *reservedSegm.Start, *reservedSegm.End()"
+	const op = "Live.clearSpace"
 
 	log := l.log.With(
 		slog.String("op", op),

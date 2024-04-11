@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ffmpeg -hide_banner -y \
-    -f alsa -i hw:2,0 \
+    -f alsa -i hw:1,0 \
     -c:a aac \
     -b:a $BITRATE \
     -ac $CHANNELS \
