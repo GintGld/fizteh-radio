@@ -2,6 +2,7 @@
 
 ffmpeg -hide_banner -y \
     -f alsa -i hw:1,0 \
+    -filter_complex "pan=stereo|c0<c0+c1|c1<c0+c1,volume=10dB" \
     -c:a aac \
     -b:a $BITRATE \
     -ac $CHANNELS \
@@ -13,4 +14,3 @@ ffmpeg -hide_banner -y \
     -media_seg_name $SEGMENT_NAME \
     -seg_duration $SEGMENT_DURATION \
     -f dash $OUTPUT
-
