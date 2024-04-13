@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS listener(
+    id INTEGER PRIMARY KEY,
+    start INTEGER NOT NULL,
+    stop INTEGER NOT NULL
+);

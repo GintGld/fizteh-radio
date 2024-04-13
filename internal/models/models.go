@@ -121,3 +121,9 @@ func (s Segment) MarshalJSON() ([]byte, error) {
 
 	return json.Marshal(tmp)
 }
+
+type Listener struct {
+	ID    int64     `json:"id"`
+	Start time.Time `json:"start"`
+	Stop  time.Time `json:"stop"`
+}

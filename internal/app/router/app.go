@@ -22,6 +22,7 @@ import (
 	rootSrv "github.com/GintGld/fizteh-radio/internal/service/root"
 	schSrv "github.com/GintGld/fizteh-radio/internal/service/schedule"
 	srcSrv "github.com/GintGld/fizteh-radio/internal/service/source"
+	statSrv "github.com/GintGld/fizteh-radio/internal/service/stat"
 
 	authCtr "github.com/GintGld/fizteh-radio/internal/controller/auth"
 	dashCtr "github.com/GintGld/fizteh-radio/internal/controller/dash"
@@ -29,6 +30,7 @@ import (
 	mediaCtr "github.com/GintGld/fizteh-radio/internal/controller/media"
 	rootCtr "github.com/GintGld/fizteh-radio/internal/controller/root"
 	schCtr "github.com/GintGld/fizteh-radio/internal/controller/schedule"
+	statCtr "github.com/GintGld/fizteh-radio/internal/controller/stat"
 )
 
 type App struct {
@@ -65,6 +67,7 @@ func New(
 	liveDelay time.Duration,
 	liveStep time.Duration,
 	liveScript string,
+	listenerTimeout time.Duration,
 ) *App {
 	// Create sevices
 	jwt := jwtSrv.New(secret)
@@ -162,6 +165,12 @@ func New(
 		sch,
 		sch2dashChan,
 	)
+	// Stat
+	stat := statSrv.New(
+		log,
+		storage,
+		listenerTimeout,
+	)
 
 	// Controller helper
 	jwtCtr := jwtCtr.New(secret)
@@ -179,6 +188,7 @@ func New(
 	app.Mount("/library", mediaCtr.New(lib, src, jwtCtr, tmpDir))
 	app.Mount("/schedule", schCtr.New(sch, dj, live, jwtCtr))
 	app.Mount("/radio", dashCtr.New(manPath, contentDir, jwtCtr, dash))
+	app.Mount("/stat", statCtr.New(stat))
 
 	// In debug mode there's no proxy that serves static files.
 	if log.Enabled(context.Background(), slog.LevelDebug) {

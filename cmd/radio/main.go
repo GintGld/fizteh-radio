@@ -53,6 +53,7 @@ func main() {
 		cfg.Delay,
 		cfg.StepDuration,
 		cfg.ScriptPath,
+		cfg.ListenerTimeout,
 	)
 
 	// Run server

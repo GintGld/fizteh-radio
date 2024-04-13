@@ -9,15 +9,16 @@ import (
 )
 
 type Config struct {
-	Env           string        `yaml:"env" env-required:"true"`
-	LogPath       string        `yaml:"log_path" env-default:""`
-	StoragePath   string        `yaml:"storage_path" env-required:"true"`
-	TokenTTL      time.Duration `yaml:"token_ttl" env-default:"1h"`
-	HTTPServer    `yaml:"http_server"`
-	SourceStorage `yaml:"source_storage"`
-	Dash          `yaml:"dash"`
-	DJ            `yaml:"dj"`
-	Live          `yaml:"live"`
+	Env             string        `yaml:"env" env-required:"true"`
+	LogPath         string        `yaml:"log_path" env-default:""`
+	StoragePath     string        `yaml:"storage_path" env-required:"true"`
+	TokenTTL        time.Duration `yaml:"token_ttl" env-default:"1h"`
+	ListenerTimeout time.Duration `yaml:"listener_timeout" env-default:"2s"`
+	HTTPServer      `yaml:"http_server"`
+	SourceStorage   `yaml:"source_storage"`
+	Dash            `yaml:"dash"`
+	DJ              `yaml:"dj"`
+	Live            `yaml:"live"`
 }
 
 type HTTPServer struct {

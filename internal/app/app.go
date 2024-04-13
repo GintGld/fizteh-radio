@@ -40,6 +40,7 @@ func New(
 	liveDelay time.Duration,
 	liveStep time.Duration,
 	liveScript string,
+	listenerTimeout time.Duration,
 ) *App {
 	storage, err := sqlite.New(storagePath)
 	if err != nil {
@@ -73,6 +74,7 @@ func New(
 		liveDelay,
 		liveStep,
 		liveScript,
+		listenerTimeout,
 	)
 
 	return &App{

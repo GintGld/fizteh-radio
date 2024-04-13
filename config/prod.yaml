@@ -2,6 +2,7 @@ env: prod
 log_path: /radio/.log/radio.log
 storage_path: /radio/storage/storage.sqlite
 token_ttl: 1h
+listener_timeout: 5s
 http_server:
   address: :8082
   timeout: 4s
