@@ -77,6 +77,9 @@ func (s *Stat) PingListener(id int64) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	if _, ok := s.listenerTiker[id]; !ok {
+		return
+	}
 	s.listenerTiker[id].Stop()
 	s.setTimeout(id)
 }
