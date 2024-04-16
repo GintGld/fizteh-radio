@@ -121,13 +121,18 @@ func (l *Live) Start(ctx context.Context, live models.Live) error {
 		MediaID:   ptr.Ptr[int64](0),
 		Start:     ptr.Ptr(l.live.Start),
 		BeginCut:  ptr.Ptr[time.Duration](0),
-		StopCut:   ptr.Ptr(l.stepDuration),
+		StopCut:   ptr.Ptr(2 * l.stepDuration),
 		Protected: true,
 		LiveId:    l.live.ID,
 	}
 	// Clear space for live.
 	if err := l.clearSpace(ctx, *reservedSegm.Start, reservedSegm.End()); err != nil {
 		log.Error("failed to clear space", sl.Err(err))
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	// Clear all autodj segments.
+	if err := l.sch.ClearSchedule(ctx, l.live.Start); err != nil {
+		log.Error("failed to clear schedule", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	// Register segment.
@@ -329,7 +334,7 @@ func (l *Live) clearSpace(ctx context.Context, start, stop time.Time) error {
 	for _, s := range res {
 		if s.Protected && s.LiveId == 0 {
 			if err := l.sch.DeleteSegment(ctx, *s.ID); err != nil {
-				log.Error("failed to delere segment", slog.Int64("id", *s.ID), sl.Err(err))
+				log.Error("failed to delete segment", slog.Int64("id", *s.ID), sl.Err(err))
 				return fmt.Errorf("%s: %w", op, err)
 			}
 		}
