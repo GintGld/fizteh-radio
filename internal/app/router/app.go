@@ -66,7 +66,9 @@ func New(
 	djCacheFile string,
 	liveDelay time.Duration,
 	liveStep time.Duration,
-	liveScript string,
+	liveSourceType string,
+	liveSource string,
+	liveFilters map[string]string,
 	listenerTimeout time.Duration,
 ) *App {
 	// Create sevices
@@ -131,7 +133,9 @@ func New(
 		sch,
 		liveDelay,
 		liveStep,
-		liveScript,
+		liveSourceType,
+		liveSource,
+		liveFilters,
 		contentDir,
 		chunkLength,
 	)

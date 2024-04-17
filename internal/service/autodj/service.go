@@ -699,5 +699,7 @@ func (a *AutoDJ) IsPlaying() bool {
 }
 
 func (a *AutoDJ) Stop() {
-	chans.Notify(a.stopChan)
+	if a.IsPlaying() {
+		chans.Notify(a.stopChan)
+	}
 }

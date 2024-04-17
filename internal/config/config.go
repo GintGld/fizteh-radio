@@ -53,9 +53,11 @@ type DJ struct {
 }
 
 type Live struct {
-	Delay        time.Duration `yaml:"delay" env-default:"2s"`
-	StepDuration time.Duration `yaml:"step_duration" env-default:"5m"`
-	ScriptPath   string        `yaml:"script_path" env_required:"true"`
+	Delay        time.Duration     `yaml:"delay" env-default:"2s"`
+	StepDuration time.Duration     `yaml:"step_duration" env-default:"5m"`
+	SourceType   string            `yaml:"source-type" env-default:""`
+	Source       string            `yaml:"source" env-required:"true"`
+	Filters      map[string]string `yaml:"filters"`
 }
 
 func MustLoad() *Config {

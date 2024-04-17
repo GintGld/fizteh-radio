@@ -8,8 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/GintGld/fizteh-radio/internal/lib/ffmpeg"
@@ -22,8 +22,7 @@ import (
 )
 
 const (
-	waitBeforeDelete = 15 * time.Second
-	cleanupFreq      = 15 * time.Second
+	waitBeforeDelete = 30 * time.Second
 )
 
 type Live struct {
@@ -31,7 +30,9 @@ type Live struct {
 	sch          Schedule
 	delay        time.Duration
 	stepDuration time.Duration
-	scriptPath   string
+	sourceType   string
+	source       string
+	filters      map[string]string
 	dir          string
 	chunkLength  time.Duration
 
@@ -58,7 +59,9 @@ func New(
 	sch Schedule,
 	delay time.Duration,
 	stepDuration time.Duration,
-	scriptPath string,
+	sourceType string,
+	source string,
+	filters map[string]string,
 	dir string,
 	chunkLength time.Duration,
 ) *Live {
@@ -67,7 +70,9 @@ func New(
 		sch:          sch,
 		delay:        delay,
 		stepDuration: stepDuration,
-		scriptPath:   scriptPath,
+		sourceType:   sourceType,
+		source:       source,
+		filters:      filters,
 		dir:          dir,
 		chunkLength:  chunkLength,
 
@@ -77,7 +82,7 @@ func New(
 }
 
 // Start start live.
-func (l *Live) Start(ctx context.Context, live models.Live) error {
+func (l *Live) Run(ctx context.Context, live models.Live) error {
 	const op = "Live.StartLive"
 
 	// Avoid multiple calls.
@@ -143,36 +148,31 @@ func (l *Live) Start(ctx context.Context, live models.Live) error {
 			return fmt.Errorf("%s: %w", op, err)
 		} else {
 			log.Error("failed to create segment", sl.Err(err))
-			if err := l.stopCmd(); err != nil {
-				log.Error("failed to stop cmd", sl.Err(err))
-			}
 			return fmt.Errorf("%s: %w", op, err)
 		}
 	}
 	reservedSegm.ID = ptr.Ptr(id)
 
+	// Conext for subroutines.
+	ctxSub, cancel := context.WithCancel(ctx)
+	errChan := make(chan error)
 	// Start cmd
 	go func() {
-		if err := l.runCmd(id); err != nil {
+		if err := l.runCmd(ctxSub, id, errChan); err != nil {
 			log.Error("live cmd returned error", sl.Err(err))
 		}
 	}()
+	// Start cleanup.
+	time.AfterFunc(
+		time.Until(l.live.Start.Add(waitBeforeDelete)),
+		func() { l.cleanup(ctxSub, id, 1) },
+	)
 	// Stop cmd at the end of this function.
-	defer func() {
-		if err := l.stopCmd(); err != nil {
-			log.Error("error in stopping live cmd", sl.Err(err))
-		}
-	}()
+	defer cancel()
 
-	// Setup cleanup.
-	ctxCleanup, cleanupCancel := context.WithCancel(ctx)
-	defer cleanupCancel()
-	go func() {
-		l.cleanup(ctxCleanup, id, 1)
-	}()
-
-	// Increase reserved segment stopcut
-	// by fixed values.
+	// In main loop
+	// increase reserved segment
+	// stopcut by fixed values.
 main_loop:
 	for {
 		*reservedSegm.StopCut += l.stepDuration
@@ -188,6 +188,9 @@ main_loop:
 
 		select {
 		case <-time.After(l.stepDuration):
+		case err := <-errChan:
+			log.Error("cmd returned error, stop live.", sl.Err(err))
+			break main_loop
 		case <-l.stopChan:
 			break main_loop
 		case <-ctx.Done():
@@ -198,7 +201,10 @@ main_loop:
 	log.Info("stopping live")
 
 	// Set live end
-	live.Stop = time.Now()
+	l.live.Stop = time.Now()
+
+	log.Debug("set live stop", slog.Time("stop", live.Stop))
+
 	if err := l.sch.SetLiveStop(ctx, l.live); err != nil {
 		log.Error("failed to set live stop", slog.Int64("id", l.live.ID), sl.Err(err))
 	}
@@ -210,13 +216,12 @@ main_loop:
 	}
 
 	log.Info("stopped live")
-	l.live = models.Live{}
 
 	return nil
 }
 
-// runCmd runs cmd for ffmpeg catching source.
-func (l *Live) runCmd(id int64) error {
+// runCmd runs cmd for ffmpeg recording source.
+func (l *Live) runCmd(ctx context.Context, id int64, errChan chan<- error) (errRes error) {
 	const op = "Live.runCmd"
 
 	log := l.log.With(
@@ -224,30 +229,66 @@ func (l *Live) runCmd(id int64) error {
 		slog.Int64("id", id),
 	)
 
+	// Send error if not nil.
+	defer func() {
+		if errRes != nil {
+			errChan <- errRes
+		}
+	}()
+
+	// Create dir for generated files
 	dir := fmt.Sprintf("%s/%s", l.dir, ffmpeg.Dir(id))
 	if err := os.MkdirAll(dir, 0777); err != nil {
-		log.Error("failed to create dir")
+		log.Error("failed to create dir", sl.Err(err))
+		errRes = fmt.Errorf("%s: %w", op, err)
+		return
 	}
-
-	l.cmd = exec.Command("bash", l.scriptPath)
+	log.Debug("created dir", slog.String("", dir))
 
 	const (
 		bitrate      = "96k"
-		channels     = 2
-		samplingRate = 44100
+		channels     = "2"
+		samplingRate = "44100"
 	)
-
 	durationString := strconv.FormatFloat(l.chunkLength.Seconds(), 'g', -1, 64)
 
-	l.cmd.Env = append(l.cmd.Environ(),
-		fmt.Sprintf("BITRATE=%s", bitrate),
-		fmt.Sprintf("CHANNELS=%d", channels),
-		fmt.Sprintf("SAMPLING_RATE=%d", samplingRate),
-		fmt.Sprintf("INIT_NAME=%s", ffmpeg.InitFile(id)),
-		fmt.Sprintf("SEGMENT_NAME=%s", ffmpeg.ChunkFile(id)),
-		fmt.Sprintf("SEGMENT_DURATION=%s", durationString),
-		fmt.Sprintf("OUTPUT=%s", fmt.Sprintf("%s/%s", l.dir, "tmp.mpd")),
+	// Construct cmd.
+	// Basic args.
+	cmdArgs := []string{"-hide_banner", "-y", "-loglevel", "error"}
+	// Source type if exists (e.g. "pulse", "alsa")
+	if l.sourceType != "" {
+		cmdArgs = append(cmdArgs, "-f", l.sourceType)
+	}
+	// Source (like "hw:1,0" for alsa or ip address)
+	cmdArgs = append(cmdArgs, "-i", l.source)
+	// Additional filters.
+	if len(l.filters) != 0 {
+		log.Debug("filter", slog.Any("", l.filters))
+
+		// Format "<key>=<val>,<key>=<val>"
+		s := make([]string, 0, len(l.filters))
+		for k, v := range l.filters {
+			s = append(s, fmt.Sprintf("%s=%s", k, v))
+		}
+		cmdArgs = append(cmdArgs, "-filter_complex", strings.Join(s, ","))
+	}
+	// Dash chunk settings
+	cmdArgs = append(cmdArgs,
+		"-c:a", "aac",
+		"-b:a", bitrate,
+		"-ac", channels,
+		"-ar", samplingRate,
+		"-dash_segment_type", "mp4",
+		"-use_template", "1",
+		"-use_timeline", "0",
+		"-init_seg_name", ffmpeg.InitFile(id),
+		"-media_seg_name", ffmpeg.ChunkFile(id),
+		"-seg_duration", durationString,
+		"-f", "dash",
+		fmt.Sprintf("%s/%s", l.dir, "tmp.mpd"),
 	)
+
+	l.cmd = exec.CommandContext(ctx, "ffmpeg", cmdArgs...)
 
 	log.Debug("setup live cmd", slog.String("cmd", l.cmd.String()))
 	log.Info("start live cmd")
@@ -256,64 +297,28 @@ func (l *Live) runCmd(id int64) error {
 	l.cmd.Stderr = l.errorWriter
 
 	if err := l.cmd.Run(); err != nil {
-		log.Error(
-			"failed to run live cmd",
-			slog.String("stderr", l.errorWriter.String()),
-			sl.Err(err),
-		)
-		return fmt.Errorf("%s: %w", op, err)
-	}
-
-	log.Info("stopped live cmd")
-
-	return nil
-}
-
-// stopCmd stops cmd.
-func (l *Live) stopCmd() error {
-	const op = "Live.stopCmd"
-
-	log := l.log.With(
-		slog.String("op", op),
-	)
-
-	if l.cmd == nil {
-		log.Warn("process is nil")
-		return nil
-	}
-
-	if l.cmd.Process == nil {
-		log.Warn("process is nil")
-		return nil
-	}
-
-	if err := l.cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		log.Error("failed to send SIGTERM, trying to seng SIGKILL", sl.Err(err))
-		if err := l.cmd.Process.Signal(syscall.SIGKILL); err != nil {
-			log.Error("failed to send SIGKILL", sl.Err(err))
-			return fmt.Errorf("%s: %w", op, err)
+		// Since cmd is being closed by context,
+		// the correct shutdown returns error code -1
+		// and "signal: killed" message.
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == -1 && exitErr.String() == "signal: killed" {
+			log.Debug("successfully killed process")
+		} else {
+			log.Error(
+				"failed to run live cmd",
+				slog.String("stderr", l.errorWriter.String()),
+				sl.Err(err),
+			)
+			errRes = fmt.Errorf("%s: %w", op, err)
+			return
 		}
 	}
 
-	if err := l.cmd.Wait(); err != nil {
-		log.Error("failed to wait process stop", sl.Err(err))
-		return fmt.Errorf("%s: %w", op, err)
-	}
+	log.Info("stopped live cmd")
+	log.Debug("stderr", slog.String("", l.errorWriter.String()))
 
-	if l.cmd.ProcessState == nil {
-		log.Warn("process state is nil")
-		return nil
-	}
-
-	if !l.cmd.ProcessState.Success() {
-		log.Error(
-			"cmd ended with error",
-			slog.Int("code", l.cmd.ProcessState.ExitCode()),
-			slog.String("proc. State", l.cmd.ProcessState.String()),
-		)
-	}
-
-	return nil
+	errRes = nil
+	return
 }
 
 // clearSpace deletes protectected
@@ -352,7 +357,10 @@ func (l *Live) IsPlaying() bool {
 }
 
 func (l *Live) Info() models.Live {
-	return l.live
+	if l.IsPlaying() {
+		return l.live
+	}
+	return models.Live{}
 }
 
 func (l *Live) Stop() {
@@ -361,8 +369,8 @@ func (l *Live) Stop() {
 	}
 }
 
-// cleanup deletes segment's directory
-// with all chunk,produces by live.
+// cleanup deletes chunks one by one
+// when ctx is cancelled deletes whole directory.
 func (l *Live) cleanup(ctx context.Context, id int64, chunkId int) {
 	const op = "Live.cleanup"
 
@@ -371,25 +379,14 @@ func (l *Live) cleanup(ctx context.Context, id int64, chunkId int) {
 		slog.Int64("id", id),
 	)
 
-	// Time pasted from the first recorded segment
-	timeSpent := time.Since(l.live.Start) - l.live.Offset
-	maxId := int(timeSpent / l.chunkLength)
-
-	log.Debug("delete chunks", slog.Int("from", chunkId), slog.Int("to", maxId-1))
-
-	for i := chunkId; i < maxId; i++ {
-		if err := os.Remove(l.dir + "/" + ffmpeg.ChunkFileCurrent(id, i)); err != nil {
-			log.Error("failed to delete file", slog.String("file", l.dir+"/"+ffmpeg.ChunkFileCurrent(id, i)), sl.Err(err))
-		}
-	}
-
-	if maxId < chunkId {
-		maxId = chunkId
+	file := l.dir + "/" + ffmpeg.ChunkFileCurrent(id, chunkId)
+	if err := os.Remove(file); err != nil {
+		log.Error("failed to delete file", slog.String("file", file), sl.Err(err))
 	}
 
 	select {
-	case <-time.After(cleanupFreq):
-		l.cleanup(ctx, id, maxId)
+	case <-time.After(l.chunkLength):
+		l.cleanup(ctx, id, chunkId+1)
 	case <-ctx.Done():
 		delTime := l.live.Stop.Add(waitBeforeDelete)
 		log.Debug("ctx done, remove all chunks. wait until live ends", slog.Time("until", delTime))

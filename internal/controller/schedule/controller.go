@@ -37,7 +37,7 @@ type DJ interface {
 }
 
 type Live interface {
-	Start(ctx context.Context, live models.Live) error
+	Run(ctx context.Context, live models.Live) error
 	Info() models.Live
 	Stop()
 }
@@ -322,7 +322,7 @@ func (schCtr *scheduleController) startLive(c *fiber.Ctx) error {
 		request.Live.Start = time.Now()
 	}
 
-	go schCtr.live.Start(context.TODO(), request.Live)
+	go schCtr.live.Run(context.TODO(), request.Live)
 
 	return c.SendStatus(fiber.StatusOK)
 }

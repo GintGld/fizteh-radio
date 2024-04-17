@@ -39,7 +39,9 @@ func New(
 	djCacheFile string,
 	liveDelay time.Duration,
 	liveStep time.Duration,
-	liveScript string,
+	liveSourceType string,
+	liveSource string,
+	liveFilters map[string]string,
 	listenerTimeout time.Duration,
 ) *App {
 	storage, err := sqlite.New(storagePath)
@@ -73,7 +75,9 @@ func New(
 		djCacheFile,
 		liveDelay,
 		liveStep,
-		liveScript,
+		liveSourceType,
+		liveSource,
+		liveFilters,
 		listenerTimeout,
 	)
 

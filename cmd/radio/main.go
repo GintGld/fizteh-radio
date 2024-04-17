@@ -52,7 +52,9 @@ func main() {
 		cfg.DjCacheFile,
 		cfg.Delay,
 		cfg.StepDuration,
-		cfg.ScriptPath,
+		cfg.SourceType,
+		cfg.Source,
+		cfg.Filters,
 		cfg.ListenerTimeout,
 	)
 

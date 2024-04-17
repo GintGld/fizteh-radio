@@ -28,4 +28,8 @@ dj:
 live:
   delay: 5s
   step_duration: 10s
-  script_path: /radio/scripts/dash.sh
+  source-type: alsa
+  source: hw:1,0
+  filters:
+    pan : stereo|c0<c0+c1|c1<c0+c1
+    volume : 20dB
