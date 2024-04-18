@@ -122,6 +122,7 @@ func (s *Storage) Segment(ctx context.Context, id int64) (models.Segment, error)
 	if err != nil {
 		return models.Segment{}, fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	var (
 		segment                          models.Segment
@@ -357,6 +358,7 @@ func (s *Storage) AttachLive(ctx context.Context, segmId int64, liveId int64) er
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	if _, err := stmt.Exec(segmId, liveId); err != nil {
 		var sqliteErr sqlite3.Error

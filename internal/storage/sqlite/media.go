@@ -29,6 +29,7 @@ func (s *Storage) AllMedia(ctx context.Context, limit, offset int) ([]models.Med
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	rows, err := stmt.QueryContext(ctx, limit, offset)
 	if err != nil {
@@ -298,6 +299,7 @@ func (s *Storage) updateTagTypes(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
@@ -327,6 +329,7 @@ func (s *Storage) updateTagList(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	s.tagCache.mutex.Lock()
 	defer s.tagCache.mutex.Unlock()
@@ -377,6 +380,7 @@ func (s *Storage) SaveTag(ctx context.Context, tag models.Tag) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	res, err := stmt.ExecContext(ctx, tag.Name, tag.Type.ID)
 	if err != nil {
@@ -404,6 +408,7 @@ func (s *Storage) Tag(ctx context.Context, id int64) (models.Tag, error) {
 	if err != nil {
 		return models.Tag{}, fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	row := stmt.QueryRowContext(ctx, id)
 
@@ -431,6 +436,7 @@ func (s *Storage) UpdateTag(ctx context.Context, tag models.Tag) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	if _, err := stmt.ExecContext(ctx); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
@@ -488,6 +494,7 @@ func (s *Storage) TagMedia(ctx context.Context, mediaId int64, tags ...models.Ta
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	if _, err := stmt.ExecContext(ctx); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
@@ -515,6 +522,7 @@ func (s *Storage) MultiTagMedia(ctx context.Context, tag models.Tag, mediaIds ..
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	if _, err := stmt.ExecContext(ctx); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
@@ -542,6 +550,7 @@ func (s *Storage) UntagMedia(ctx context.Context, mediaId int64, tags ...models.
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	if _, err := stmt.ExecContext(ctx); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
@@ -578,6 +587,7 @@ func (s *Storage) TagMeta(ctx context.Context, tag models.Tag) (map[string]strin
 	if err != nil {
 		return map[string]string{}, fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	row, err := stmt.QueryContext(ctx, tag.ID)
 	if err != nil {
