@@ -41,6 +41,9 @@ func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Ti
 
 	rows, err := stmt.QueryContext(ctx, start.UnixMicro(), stop.UnixMicro())
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return []models.Segment{}, storage.ErrContextCancelled
+		}
 		return []models.Segment{}, fmt.Errorf("%s: %w", op, err)
 	}
 	defer rows.Close()
@@ -53,6 +56,9 @@ func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Ti
 	)
 	for rows.Next() {
 		if err = rows.Scan(&id, &mediaID, &startMs, &beginMuS, &stopMuS); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return []models.Segment{}, storage.ErrContextCancelled
+			}
 			return segments, fmt.Errorf("%s: %w", op, err)
 		}
 		segment.ID = ptr.Ptr(id)
@@ -103,6 +109,9 @@ func (s *Storage) SaveSegment(ctx context.Context, segment models.Segment) (int6
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
 			return 0, fmt.Errorf("%s: %w", op, storage.ErrMediaExists)
 		}
+		if errors.Is(err, context.Canceled) {
+			return 0, storage.ErrContextCancelled
+		}
 
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
@@ -136,6 +145,9 @@ func (s *Storage) Segment(ctx context.Context, id int64) (models.Segment, error)
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.Segment{}, fmt.Errorf("%s: %w", op, storage.ErrSegmentNotFound)
 		}
+		if errors.Is(err, context.Canceled) {
+			return models.Segment{}, storage.ErrContextCancelled
+		}
 
 		return models.Segment{}, fmt.Errorf("%s: %w", op, err)
 	}
@@ -166,6 +178,9 @@ func (s *Storage) UpdateSegmenTiming(ctx context.Context, segment models.Segment
 		segment.StopCut.Microseconds(),
 		*segment.ID,
 	); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return storage.ErrContextCancelled
+		}
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -184,6 +199,9 @@ func (s *Storage) DeleteSegment(ctx context.Context, id int64) error {
 
 	res, err := stmt.ExecContext(ctx, id)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return storage.ErrContextCancelled
+		}
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	affectedRows, err := res.RowsAffected()
@@ -213,6 +231,9 @@ func (s *Storage) ProtectSegment(ctx context.Context, id int64) error {
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
 			return storage.ErrSegmentAlreadyProtected
 		}
+		if errors.Is(err, context.Canceled) {
+			return storage.ErrContextCancelled
+		}
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -235,6 +256,9 @@ func (s *Storage) IsSegmentProtected(ctx context.Context, id int64) (bool, error
 	var res int8
 
 	if err := row.Scan(&res); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return false, storage.ErrContextCancelled
+		}
 		return false, fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -259,6 +283,9 @@ func (s *Storage) NewLive(ctx context.Context, live models.Live) (int64, error) 
 		live.Offset.Microseconds(),
 	)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return 0, storage.ErrContextCancelled
+		}
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -281,6 +308,9 @@ func (s *Storage) SetLiveStop(ctx context.Context, live models.Live) error {
 	defer stmt.Close()
 
 	if _, err := stmt.ExecContext(ctx, live.Stop.UnixMicro(), live.ID); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return storage.ErrContextCancelled
+		}
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -300,6 +330,9 @@ func (s *Storage) GetLive(ctx context.Context, start time.Time) ([]models.Live, 
 
 	rows, err := stmt.QueryContext(ctx, start.UnixMicro())
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return []models.Live{}, storage.ErrContextCancelled
+		}
 		return []models.Live{}, fmt.Errorf("%s: %w", op, err)
 	}
 	defer rows.Close()
@@ -312,6 +345,9 @@ func (s *Storage) GetLive(ctx context.Context, start time.Time) ([]models.Live, 
 
 	for rows.Next() {
 		if err := rows.Scan(&live.ID, &live.Name, &startMs, &stopMs, &delayMs, &offsetMs); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return []models.Live{}, storage.ErrContextCancelled
+			}
 			return []models.Live{}, fmt.Errorf("%s: %w", op, err)
 		}
 		live.Start = time.Unix(startMs/1000000, startMs%1000000*1000)
@@ -343,6 +379,9 @@ func (s *Storage) LiveId(ctx context.Context, id int64) (int64, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, nil
 		}
+		if errors.Is(err, context.Canceled) {
+			return 0, storage.ErrContextCancelled
+		}
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -367,6 +406,9 @@ func (s *Storage) AttachLive(ctx context.Context, segmId int64, liveId int64) er
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
 			return storage.ErrSegmentAlreadyAttachedToLive
 		}
+		if errors.Is(err, context.Canceled) {
+			return storage.ErrContextCancelled
+		}
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -390,6 +432,9 @@ func (s *Storage) ClearSchedule(ctx context.Context, from time.Time) error {
 	defer stmt.Close()
 
 	if _, err := stmt.ExecContext(ctx, from.UnixMicro()); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return storage.ErrContextCancelled
+		}
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
