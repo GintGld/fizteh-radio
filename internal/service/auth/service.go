@@ -117,8 +117,11 @@ func (a *Auth) loginEditor(ctx context.Context, login string, password string) (
 	if err != nil {
 		if errors.Is(err, storage.ErrEditorNotFound) {
 			log.Warn("editor not found", sl.Err(err))
-
 			return "", fmt.Errorf("%s: %w", op, service.ErrInvalidCredentials)
+		}
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("editorStorage.EditorByLogin timeout exceeded")
+			return "", service.ErrTimeout
 		}
 
 		log.Error("failed to get editor", sl.Err(err))

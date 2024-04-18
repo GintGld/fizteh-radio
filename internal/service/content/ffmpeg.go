@@ -14,6 +14,8 @@ import (
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
 	"github.com/GintGld/fizteh-radio/internal/lib/utils/writer"
 	"github.com/GintGld/fizteh-radio/internal/models"
+	"github.com/GintGld/fizteh-radio/internal/service"
+	"github.com/GintGld/fizteh-radio/internal/storage"
 )
 
 // TODO: move waitBeforeDelete to config
@@ -66,6 +68,10 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 
 	media, err := c.media.Media(ctx, *s.MediaID)
 	if err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("get media timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error(
 			"failed to get media",
 			slog.Int64("mediaID", *s.MediaID),
@@ -76,6 +82,10 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 
 	filePath, err := c.source.LoadSource(ctx, c.path+"/.cache", media)
 	if err != nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("LoadSource timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error(
 			"failed to load source file",
 			slog.Int64("sourceID", *media.SourceID),
@@ -102,7 +112,7 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 	stopString := strconv.FormatFloat(s.StopCut.Seconds(), 'g', -1, 64)
 	durationString := strconv.FormatFloat(c.chunkLength.Seconds(), 'g', -1, 64)
 
-	cmd := exec.Command(
+	cmd := exec.CommandContext(ctx,
 		"ffmpeg",           //							call converter
 		"-hide_banner",     //							hide banner
 		"-y",               //							force rewriting file
@@ -127,6 +137,10 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 	cmd.Stderr = errorWriter
 
 	if err := cmd.Run(); err != nil {
+		if errors.Is(err, context.Canceled) {
+			log.Error("ffmpeg cmd timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error(
 			"failed to run command",
 			slog.String("cmd", cmd.String()),

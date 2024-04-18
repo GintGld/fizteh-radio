@@ -75,18 +75,30 @@ func (s *Schedule) ScheduleCut(ctx context.Context, start time.Time, stop time.T
 
 	segments, err := s.schStorage.ScheduleCut(ctx, start, stop)
 	if err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("schStorage.ScheduleCut timeout exceeded")
+			return []models.Segment{}, service.ErrTimeout
+		}
 		log.Error("failed to get schedule cut", sl.Err(err))
 		return []models.Segment{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	for i, segment := range segments {
 		if isProt, err := s.schStorage.IsSegmentProtected(ctx, *segment.ID); err != nil {
+			if errors.Is(err, storage.ErrContextCancelled) {
+				log.Error("schStorage.IsSegmentProtected timeout exceeded")
+				return []models.Segment{}, service.ErrTimeout
+			}
 			log.Error("fialed to check segment protection", slog.Int64("id", *segment.ID), sl.Err(err))
 			return []models.Segment{}, fmt.Errorf("%s: %w", op, err)
 		} else {
 			segments[i].Protected = isProt
 		}
 		if liveId, err := s.schStorage.LiveId(ctx, *segment.ID); err != nil {
+			if errors.Is(err, storage.ErrContextCancelled) {
+				log.Error("schStorage.LiveId timeout exceeded")
+				return []models.Segment{}, service.ErrTimeout
+			}
 			log.Error("failed to get live id", slog.Int64("id", *segment.ID), sl.Err(err))
 			return []models.Segment{}, fmt.Errorf("%s: %w", op, err)
 		} else {
@@ -109,6 +121,10 @@ func (s *Schedule) Lives(ctx context.Context, start time.Time) ([]models.Live, e
 
 	res, err := s.schStorage.GetLive(ctx, start)
 	if err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("schStorage.GetLive timeout exceeded")
+			return []models.Live{}, service.ErrTimeout
+		}
 		log.Error("failed to get lives", sl.Err(err))
 		return []models.Live{}, fmt.Errorf("%s: %w", op, err)
 	}
@@ -127,6 +143,10 @@ func (s *Schedule) NewLive(ctx context.Context, live models.Live) (int64, error)
 
 	id, err := s.schStorage.NewLive(ctx, live)
 	if err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("schStorage.NewLive timeout exceeded")
+			return 0, service.ErrTimeout
+		}
 		log.Error("failed to register live", sl.Err(err))
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
@@ -143,6 +163,10 @@ func (s *Schedule) SetLiveStop(ctx context.Context, live models.Live) error {
 	)
 
 	if err := s.schStorage.SetLiveStop(ctx, live); err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("schStorage.SetLiveStop timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to set live stop", slog.Int64("id", live.ID), sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -200,6 +224,10 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 
 	res, err := s.ScheduleCut(ctx, *segment.Start, segment.End())
 	if err != nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("schStorage.SetLiveStop timeout exceeded")
+			return 0, service.ErrTimeout
+		}
 		log.Error("failed to get schedule cut")
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
@@ -215,6 +243,10 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 
 		id, err := s.schStorage.SaveSegment(ctx, segment)
 		if err != nil {
+			if errors.Is(err, storage.ErrContextCancelled) {
+				log.Error("schStorage.SaveSegment timeout exceeded")
+				return 0, service.ErrTimeout
+			}
 			log.Error("failed to save segment", sl.Err(err))
 			return 0, fmt.Errorf("%s: %w", op, err)
 		}
@@ -248,6 +280,10 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 				log.Warn("did not found segment to delete", slog.Int64("segmId", *segm.ID))
 				continue
 			}
+			if errors.Is(err, storage.ErrContextCancelled) {
+				log.Error("schStorage.DeleteSegment timeout exceeded")
+				return 0, service.ErrTimeout
+			}
 			log.Error("failed to delete segment", slog.Int64("segmId", *segm.ID), sl.Err(err))
 			return 0, fmt.Errorf("%s: %w", op, err)
 		}
@@ -258,6 +294,10 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 	// Create segment.
 	id, err := s.schStorage.SaveSegment(ctx, segment)
 	if err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("schStorage.SaveSegment timeout exceeded")
+			return 0, service.ErrTimeout
+		}
 		log.Error("failed to save segment", sl.Err(err))
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
@@ -269,6 +309,10 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 		if errors.Is(err, storage.ErrSegmentAlreadyProtected) {
 			log.Warn("segment already protected", slog.Int64("id", id))
 		} else {
+			if errors.Is(err, storage.ErrContextCancelled) {
+				log.Error("schStorage.ProtectSegment timeout exceeded")
+				return 0, service.ErrTimeout
+			}
 			log.Error("failed to set segment protection", sl.Err(err))
 			return 0, fmt.Errorf("%s: %w", op, err)
 		}
@@ -279,6 +323,10 @@ func (s *Schedule) NewSegment(ctx context.Context, segment models.Segment) (int6
 	if segment.LiveId != 0 {
 		log.Debug("segment is live, attaching")
 		if err := s.schStorage.AttachLive(ctx, id, segment.LiveId); err != nil {
+			if errors.Is(err, storage.ErrContextCancelled) {
+				log.Error("schStorage.AttachLive timeout exceeded")
+				return 0, service.ErrTimeout
+			}
 			log.Error("failed to attach segment to live", slog.Int64("id", id), slog.Int64("liveId", segment.LiveId), sl.Err(err))
 			return 0, fmt.Errorf("%s: %w", op, err)
 		}
@@ -301,12 +349,20 @@ func (s *Schedule) UpdateSegmentTiming(ctx context.Context, segment models.Segme
 	)
 
 	if err := s.schStorage.UpdateSegmenTiming(ctx, segment); err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("schStorage.UpdateSegmenTiming timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to update segment timing", slog.Int64("id", *segment.ID), sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	res, err := s.ScheduleCut(ctx, *segment.Start, segment.End())
 	if err != nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("schStorage.ScheduleCut timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to get schedule cut", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -346,6 +402,10 @@ func (s *Schedule) Segment(ctx context.Context, id int64) (models.Segment, error
 			log.Warn("segment not found", slog.Int64("id", id))
 			return models.Segment{}, service.ErrSegmentNotFound
 		}
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("schStorage.Segment timeout exceeded")
+			return models.Segment{}, service.ErrTimeout
+		}
 		log.Error("failed to get segment", slog.Int64("id", id))
 		return models.Segment{}, fmt.Errorf("%s: %w", op, err)
 	}
@@ -361,12 +421,20 @@ func (s *Schedule) Segment(ctx context.Context, id int64) (models.Segment, error
 
 	isProt, err := s.schStorage.IsSegmentProtected(ctx, id)
 	if err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("schStorage.IsSegmentProtected timeout exceeded")
+			return models.Segment{}, service.ErrTimeout
+		}
 		log.Error("failed to check segment protection", slog.Int64("id", id), sl.Err(err))
 		return models.Segment{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	liveId, err := s.schStorage.LiveId(ctx, id)
 	if err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("schStorage.LiveId timeout exceeded")
+			return models.Segment{}, service.ErrTimeout
+		}
 		log.Error("failed to check segment id", slog.Int64("id", id), sl.Err(err))
 	}
 
@@ -391,6 +459,10 @@ func (s *Schedule) DeleteSegment(ctx context.Context, id int64) error {
 			log.Warn("segment not found", slog.Int64("id", id))
 			return service.ErrSegmentNotFound
 		}
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("schStorage.IsSegmentProtected timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to check is segment protected")
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -399,6 +471,10 @@ func (s *Schedule) DeleteSegment(ctx context.Context, id int64) error {
 		if errors.Is(err, storage.ErrSegmentNotFound) {
 			log.Warn("segment not found", slog.Int64("id", id))
 			return service.ErrSegmentNotFound
+		}
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("schStorage.DeleteSegment timeout exceeded")
+			return service.ErrTimeout
 		}
 		log.Error("failed to delete segment", slog.Int64("id", id))
 		return fmt.Errorf("%s: %w", op, err)
@@ -423,6 +499,10 @@ func (s *Schedule) ClearSchedule(ctx context.Context, from time.Time) error {
 	log.Info("clearing segments", slog.Time("from", from))
 
 	if err := s.schStorage.ClearSchedule(ctx, from); err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("schStorage.ClearSchedule timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to clear schedule", slog.Time("from", from))
 		return fmt.Errorf("%s: %w", op, err)
 	}

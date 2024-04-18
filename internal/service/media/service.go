@@ -101,6 +101,10 @@ main_loop:
 		// Get new media chunk
 		newSlice, err := l.mediaStorage.AllMedia(ctx, l.maxAnswerLength, offset)
 		if err != nil {
+			if errors.Is(err, storage.ErrContextCancelled) {
+				log.Error("mediaStorage.AllMedia timeout exceeded")
+				return []models.Media{}, service.ErrTimeout
+			}
 			log.Error(
 				"failed to get media",
 				slog.Int("limit", offset),
@@ -197,6 +201,10 @@ func (l *Media) NewMedia(ctx context.Context, media models.Media) (int64, error)
 
 	id, err := l.mediaStorage.SaveMedia(ctx, media)
 	if err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("mediaStorage.SaveMedia timeout exceeded")
+			return 0, service.ErrTimeout
+		}
 		log.Error("failed to save media", sl.Err(err))
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
@@ -214,6 +222,10 @@ func (l *Media) NewMedia(ctx context.Context, media models.Media) (int64, error)
 	}
 
 	if err := l.mediaStorage.TagMedia(ctx, id, media.Tags...); err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("mediaStorage.TagMedia timeout exceeded")
+			return 0, service.ErrTimeout
+		}
 		log.Error("failed to tag media", sl.Err(err))
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
@@ -249,6 +261,10 @@ func (l *Media) UpdateMedia(ctx context.Context, media models.Media) error {
 			log.Warn("media not found", slog.Int64("id", *media.ID))
 			return service.ErrMediaNotFound
 		}
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("mediaStorage.Media timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error(
 			"failed to get old media",
 			slog.Int64("id", *media.ID),
@@ -260,6 +276,10 @@ func (l *Media) UpdateMedia(ctx context.Context, media models.Media) error {
 	log.Info("found old media", slog.Int64("id", *media.ID))
 
 	if err := l.mediaStorage.UpdateMediaBasicInfo(ctx, media); err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("mediaStorage.UpdateMediaBasicInfo timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error(
 			"failed to update basic media info",
 			slog.Int64("id", *media.ID),
@@ -301,10 +321,18 @@ func (l *Media) UpdateMedia(ctx context.Context, media models.Media) error {
 	}
 
 	if err := l.mediaStorage.TagMedia(ctx, *media.ID, tagsToAdd...); err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("mediaStorage.TagMedia timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to tag media")
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	if err := l.mediaStorage.UntagMedia(ctx, *media.ID, tagsToDel...); err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("mediaStorage.UntagMedia timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to untag media")
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -335,6 +363,10 @@ func (l *Media) MultiTagMedia(ctx context.Context, tag models.Tag, mediaIds ...i
 	}
 
 	if err := l.mediaStorage.MultiTagMedia(ctx, tag, mediaIds...); err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("mediaStorage.MultiTagMedia timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to tag media list", slog.Int64("tag id", tag.ID), sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -361,6 +393,10 @@ func (l *Media) Media(ctx context.Context, id int64) (models.Media, error) {
 			log.Warn("media not found", slog.Int64("id", id))
 			return models.Media{}, service.ErrMediaNotFound
 		}
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("mediaStorage.Media timeout exceeded")
+			return models.Media{}, service.ErrTimeout
+		}
 		log.Error("failed to get media", slog.Int64("id", id), sl.Err(err))
 		return models.Media{}, err
 	}
@@ -386,6 +422,10 @@ func (l *Media) DeleteMedia(ctx context.Context, id int64) error {
 			log.Warn("media not found", slog.Int64("id", id))
 			return fmt.Errorf("%s: %w", op, service.ErrMediaNotFound)
 		}
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("mediaStorage.DeleteMedia timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to delete media", slog.Int64("id", id))
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -406,6 +446,10 @@ func (l *Media) TagTypes(ctx context.Context) (models.TagTypes, error) {
 
 	tagTypes, err := l.mediaStorage.TagTypes(ctx)
 	if err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("mediaStorage.TagTypes")
+			return models.TagTypes{}, service.ErrTimeout
+		}
 		log.Error("failed to get tag types", sl.Err(err))
 		return models.TagTypes{}, err
 	}
@@ -426,13 +470,23 @@ func (l *Media) AllTags(ctx context.Context) (models.TagList, error) {
 
 	tagList, err := l.mediaStorage.AllTags(ctx)
 	if err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("mediaStorage.AllTags timeout exceeded")
+			return models.TagList{}, service.ErrTimeout
+		}
 		log.Error("failed to get tag list", sl.Err(err))
+		return models.TagList{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	for i := range tagList {
 		tagList[i].Meta, err = l.mediaStorage.TagMeta(ctx, tagList[i])
 		if err != nil {
+			if errors.Is(err, storage.ErrContextCancelled) {
+				log.Error("mediaStorage.TagMeta timeout exceeded")
+				return models.TagList{}, service.ErrTimeout
+			}
 			log.Error("failed to get tag meta", slog.Int64("id", tagList[i].ID), sl.Err(err))
+			return models.TagList{}, fmt.Errorf("%s: %w", op, err)
 		}
 	}
 
@@ -473,6 +527,10 @@ func (l *Media) SaveTag(ctx context.Context, tag models.Tag) (int64, error) {
 			log.Warn("tag exists", slog.String("name", tag.Name))
 			return 0, service.ErrTagExists
 		}
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("mediaStorage.SaveTag timeout exceeded")
+			return 0, service.ErrTimeout
+		}
 		log.Error(
 			"failed to register tag",
 			slog.String("name", tag.Name),
@@ -485,6 +543,10 @@ func (l *Media) SaveTag(ctx context.Context, tag models.Tag) (int64, error) {
 
 	for k, v := range tag.Meta {
 		if err := l.mediaStorage.SetTagMeta(ctx, tag, k, v); err != nil {
+			if errors.Is(err, storage.ErrContextCancelled) {
+				log.Error("mediaStorage.SetTagMeta timeout exceeded")
+				return 0, service.ErrTimeout
+			}
 			log.Error("failed to add tag meta", sl.Err(err))
 			return 0, fmt.Errorf("%s: %w", op, err)
 		}
@@ -510,12 +572,20 @@ func (l *Media) Tag(ctx context.Context, id int64) (models.Tag, error) {
 			log.Warn("tag not found", slog.Int64("id", id))
 			return models.Tag{}, service.ErrTagNotFound
 		}
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("mediaStorage.Tag timeout exceeded")
+			return models.Tag{}, service.ErrTimeout
+		}
 		log.Error("failed to get tag", slog.Int64("id", id), sl.Err(err))
 		return models.Tag{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	tag.Meta, err = l.mediaStorage.TagMeta(ctx, tag)
 	if err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("mediaStorage.TagMeta timeout exceeded")
+			return models.Tag{}, service.ErrTimeout
+		}
 		log.Error("failed to get tag meta", slog.Int64("id", id), sl.Err(err))
 	}
 
@@ -544,6 +614,10 @@ func (l *Media) UpdateTag(ctx context.Context, tag models.Tag) error {
 			log.Warn("tag not found")
 			return service.ErrTagNotFound
 		}
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("tag timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to get currect tag info", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -555,6 +629,10 @@ func (l *Media) UpdateTag(ctx context.Context, tag models.Tag) error {
 
 	if oldTag.Name != tag.Name {
 		if err := l.mediaStorage.UpdateTag(ctx, tag); err != nil {
+			if errors.Is(err, storage.ErrContextCancelled) {
+				log.Error("mediaStorage.UpdateTag timeout exceeded")
+				return service.ErrTimeout
+			}
 			log.Error("failed to update tag name", sl.Err(err))
 			return fmt.Errorf("%s: %w", op, err)
 		}
@@ -563,6 +641,10 @@ func (l *Media) UpdateTag(ctx context.Context, tag models.Tag) error {
 	for oldKey := range oldTag.Meta {
 		if _, ok := tag.Meta[oldKey]; !ok {
 			if err := l.mediaStorage.DelTagMeta(ctx, tag, oldKey); err != nil {
+				if errors.Is(err, storage.ErrContextCancelled) {
+					log.Error("mediaStorage.DelTagMeta timeout exceeded")
+					return service.ErrTimeout
+				}
 				log.Error("failed to delete tag meta", sl.Err(err))
 				return fmt.Errorf("%s: %w", op, err)
 			}
@@ -571,6 +653,10 @@ func (l *Media) UpdateTag(ctx context.Context, tag models.Tag) error {
 
 	for k, v := range tag.Meta {
 		if err := l.mediaStorage.SetTagMeta(ctx, tag, v, k); err != nil {
+			if errors.Is(err, storage.ErrContextCancelled) {
+				log.Error("mediaStorage.SetTagMeta timeout exceeded")
+				return service.ErrTimeout
+			}
 			log.Error("failed to set tag meta", sl.Err(err))
 			return fmt.Errorf("%s: %w", op, err)
 		}
@@ -594,6 +680,10 @@ func (l *Media) DeleteTag(ctx context.Context, id int64) error {
 		if errors.Is(err, storage.ErrTagNotFound) {
 			log.Warn("tag not found", slog.Int64("id", id))
 			return fmt.Errorf("%s: %w", op, service.ErrTagNotFound)
+		}
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("mediaStorage.DeleteTag timeout exceeded")
+			return service.ErrTimeout
 		}
 		log.Error("failed to delete media", slog.Int64("id", id))
 		return fmt.Errorf("%s: %w", op, err)

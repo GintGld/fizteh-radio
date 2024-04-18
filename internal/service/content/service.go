@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
 	"github.com/GintGld/fizteh-radio/internal/models"
+	"github.com/GintGld/fizteh-radio/internal/service"
 )
 
 type Content struct {
@@ -80,6 +82,10 @@ func (c *Content) Generate(ctx context.Context, s models.Segment) error {
 	)
 
 	if err := c.generateDASHFiles(ctx, s); err != nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("generateDASHFiles timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to generate chunks", sl.Err(err))
 	}
 

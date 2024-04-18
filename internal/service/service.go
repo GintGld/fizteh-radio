@@ -23,4 +23,6 @@ var (
 	ErrCutOutOfBounds        = errors.New("cuts out of bounds")
 	ErrBeginAfterStop        = errors.New("begin cut is after stop cut")
 	ErrSegmentIntersection   = errors.New("intersection between segments")
+
+	ErrTimeout = errors.New("timeout exceeded")
 )

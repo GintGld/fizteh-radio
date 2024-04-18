@@ -2,6 +2,7 @@ package stat
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
 	"github.com/GintGld/fizteh-radio/internal/models"
+	"github.com/GintGld/fizteh-radio/internal/service"
+	"github.com/GintGld/fizteh-radio/internal/storage"
 )
 
 var (
@@ -131,6 +134,10 @@ func (s *Stat) Listeners(ctx context.Context, start, stop time.Time) ([]models.L
 
 	res, err := s.listenerStorage.Listeners(ctx, start, stop)
 	if err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("listenerStorage.Listeners timeout exceeded")
+			return []models.Listener{}, service.ErrTimeout
+		}
 		log.Error("failed to get listeners", slog.Time("start", start), slog.Time("stop", stop), sl.Err(err))
 		return []models.Listener{}, fmt.Errorf("%s: %w", op, err)
 	}

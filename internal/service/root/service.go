@@ -65,6 +65,10 @@ func (r *Root) RegisterNewEditor(ctx context.Context, form models.EditorIn) (int
 			log.Warn("editor exists", slog.String("login", form.Login))
 			return models.ErrEditorID, fmt.Errorf("%s: %w", op, service.ErrEditorExists)
 		}
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("edtStorage.SaveEditor timeout exceeded")
+			return models.ErrEditorID, service.ErrTimeout
+		}
 		log.Error("failed to save editor", sl.Err(err))
 
 		return models.ErrEditorID, fmt.Errorf("%s: %w", op, err)
@@ -93,6 +97,10 @@ func (r *Root) DeleteEditor(ctx context.Context, id int64) error {
 			log.Warn("editor not found", slog.Int64("id", id))
 			return fmt.Errorf("%s: %w", op, service.ErrEditorNotFound)
 		}
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("edtStorage.DeleteEditor timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to delete editor", slog.Int64("id", id))
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -118,6 +126,10 @@ func (r *Root) Editor(ctx context.Context, id int64) (models.EditorOut, error) {
 		if errors.Is(err, storage.ErrEditorNotFound) {
 			r.log.Warn("editor not found", slog.Int64("id", id))
 			return models.EditorOut{}, fmt.Errorf("%s: %w", op, service.ErrEditorNotFound)
+		}
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("edtStorage.Editor timeout exceeded")
+			return models.EditorOut{}, service.ErrTimeout
 		}
 		log.Error("failed to get editor", sl.Err(err))
 		return models.EditorOut{}, fmt.Errorf("%s: %w", op, err)
@@ -145,6 +157,10 @@ func (r *Root) AllEditors(ctx context.Context) ([]models.EditorOut, error) {
 
 	editors, err := r.edtStorage.AllEditors(ctx)
 	if err != nil {
+		if errors.Is(err, storage.ErrContextCancelled) {
+			log.Error("edtStorage.AllEditors timeout exceeded")
+			return []models.EditorOut{}, service.ErrTimeout
+		}
 		log.Error("failed to get editors", sl.Err(err))
 		return []models.EditorOut{}, fmt.Errorf("%s: %w", op, err)
 	}
