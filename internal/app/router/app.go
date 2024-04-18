@@ -79,9 +79,9 @@ func New(
 		panic("invalid root password")
 	}
 
-	sch2dashChan := make(chan models.Segment)
-	sch2djChan := make(chan struct{})
-	lib2djChan := make(chan struct{})
+	sch2dashChan := make(chan models.Segment, 1)
+	sch2djChan := make(chan struct{}, 1)
+	lib2djChan := make(chan struct{}, 1)
 
 	// Authentication service
 	auth := authSrv.New(

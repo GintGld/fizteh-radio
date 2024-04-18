@@ -44,8 +44,10 @@ type AutoDJ struct {
 	conf  models.AutoDJConfig
 
 	// External notifying channels
-	scheduleChan <-chan struct{}
-	mediaChan    <-chan struct{}
+	scheduleChan         <-chan struct{}
+	mediaChan            <-chan struct{}
+	scheduleChanRedirect chan struct{}
+	mediaChanRedirect    chan struct{}
 
 	// Internal channels
 	confChan  chan struct{}
@@ -92,6 +94,7 @@ func New(
 	}
 
 	a.recoverConfig()
+	go a.redirectChannels(context.TODO())
 
 	return a
 }
@@ -234,13 +237,13 @@ main_loop:
 		case <-a.confChan:
 			log.Debug("got conf chan")
 			goto dj_start
-		case <-a.scheduleChan:
+		case <-a.scheduleChanRedirect:
 			log.Debug("got schedule chan")
 			if err := a.updateProtected(ctx); err != nil {
 				log.Error("failed to update schedule", sl.Err(err))
 				return fmt.Errorf("%s: %w", op, err)
 			}
-		case <-a.mediaChan:
+		case <-a.mediaChanRedirect:
 			log.Debug("got media chan")
 			if err := a.updateLibrary(ctx); err != nil {
 				if errors.Is(err, service.ErrMediaNotFound) {
@@ -629,6 +632,26 @@ func (a *AutoDJ) nearestProtectedSegment() int {
 		}
 	}
 	return -1
+}
+
+// redirectChannels listen to
+// outer channels and redirect
+// notifications only if dj is working now.
+// prevents unwanted multiple calls at the start.
+func (a *AutoDJ) redirectChannels(ctx context.Context) {
+	for {
+		select {
+		case <-a.scheduleChan:
+			if a.IsPlaying() {
+				chans.Notify(a.scheduleChanRedirect)
+			}
+		case <-a.mediaChan:
+			if a.IsPlaying() {
+				chans.Notify(a.mediaChanRedirect)
+			}
+		case <-ctx.Done():
+		}
+	}
 }
 
 // recoverConfig tries to read config file.

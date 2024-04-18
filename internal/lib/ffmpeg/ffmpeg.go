@@ -11,16 +11,24 @@ func Dir(id int64) string {
 	return strconv.FormatInt(id, 10)
 }
 
+func DirLive(id int64) string {
+	return fmt.Sprintf("live-%d", id)
+}
+
 func InitFileBase() string {
 	return "init.m4s"
 }
 
 func ChunkFileBase() string {
-	return `chunk-$Number%05d$.m4s`
+	return `$Number%05d$.m4s`
 }
 
 func InitFile(id int64) string {
 	return Dir(id) + "/" + InitFileBase()
+}
+
+func InitFileLive(id int64) string {
+	return DirLive(id) + "/" + InitFileBase()
 }
 
 // max length of one mpd period is
@@ -29,10 +37,14 @@ func ChunkFile(id int64) string {
 	return Dir(id) + "/" + ChunkFileBase()
 }
 
-func ChunkFileCurrent(id int64, chunkId int) string {
+func ChunkFileLive(id int64) string {
+	return DirLive(id) + "/" + ChunkFileBase()
+}
+
+func ChunkFileLiveCurrent(id int64, chunkId int) string {
 	s := strconv.Itoa(chunkId)
 	s = strings.Repeat("0", 5-len(s)) + s
-	return fmt.Sprintf("%s/chunk-%s.m4s", Dir(id), s)
+	return fmt.Sprintf("%s/%s.m4s", DirLive(id), s)
 }
 
 // GetMeta extracts metadata parameter

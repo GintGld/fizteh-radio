@@ -134,10 +134,14 @@ main_loop:
 		}
 
 		var presentationShift uint64 = 0
+		initFile := ffmpeg.InitFile(*segment.ID)
+		chunkFile := ffmpeg.ChunkFile(*segment.ID)
 
 		if segment.LiveId != 0 {
 			live := m.live.Info()
 			presentationShift = uint64(live.Offset - live.Delay)
+			initFile = ffmpeg.InitFileLive(*segment.ID)
+			chunkFile = ffmpeg.ChunkFileLive(*segment.ID)
 		}
 
 		m.man.Periods[i] = &mpd.Period{
@@ -157,8 +161,8 @@ main_loop:
 					SegmentTemplate: &mpd.SegmentTemplate{
 						StartNumber:            ptr.Ptr[int64](1),
 						PresentationTimeOffset: ptr.Ptr(presentationShift),
-						Initialization:         ptr.Ptr(ffmpeg.InitFile(*segment.ID)),
-						Media:                  ptr.Ptr(ffmpeg.ChunkFile(*segment.ID)),
+						Initialization:         ptr.Ptr(initFile),
+						Media:                  ptr.Ptr(chunkFile),
 						Duration:               ptr.Ptr(m.chunkLength.Milliseconds()),
 						Timescale:              ptr.Ptr[int64](scale),
 					},

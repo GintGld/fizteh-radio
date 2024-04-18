@@ -135,11 +135,6 @@ func (l *Live) Run(ctx context.Context, live models.Live) error {
 		log.Error("failed to clear space", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
-	// Clear all autodj segments.
-	if err := l.sch.ClearSchedule(ctx, l.live.Start); err != nil {
-		log.Error("failed to clear schedule", sl.Err(err))
-		return fmt.Errorf("%s: %w", op, err)
-	}
 	// Register segment.
 	id, err := l.sch.NewSegment(ctx, reservedSegm)
 	if err != nil {
@@ -237,7 +232,7 @@ func (l *Live) runCmd(ctx context.Context, id int64, errChan chan<- error) (errR
 	}()
 
 	// Create dir for generated files
-	dir := fmt.Sprintf("%s/%s", l.dir, ffmpeg.Dir(id))
+	dir := fmt.Sprintf("%s/%s", l.dir, ffmpeg.DirLive(id))
 	if err := os.MkdirAll(dir, 0777); err != nil {
 		log.Error("failed to create dir", sl.Err(err))
 		errRes = fmt.Errorf("%s: %w", op, err)
@@ -281,8 +276,8 @@ func (l *Live) runCmd(ctx context.Context, id int64, errChan chan<- error) (errR
 		"-dash_segment_type", "mp4",
 		"-use_template", "1",
 		"-use_timeline", "0",
-		"-init_seg_name", ffmpeg.InitFile(id),
-		"-media_seg_name", ffmpeg.ChunkFile(id),
+		"-init_seg_name", ffmpeg.InitFileLive(id),
+		"-media_seg_name", ffmpeg.ChunkFileLive(id),
 		"-seg_duration", durationString,
 		"-f", "dash",
 		fmt.Sprintf("%s/%s", l.dir, "tmp.mpd"),
@@ -379,7 +374,7 @@ func (l *Live) cleanup(ctx context.Context, id int64, chunkId int) {
 		slog.Int64("id", id),
 	)
 
-	file := l.dir + "/" + ffmpeg.ChunkFileCurrent(id, chunkId)
+	file := l.dir + "/" + ffmpeg.ChunkFileLiveCurrent(id, chunkId)
 	if err := os.Remove(file); err != nil {
 		log.Error("failed to delete file", slog.String("file", file), sl.Err(err))
 	}
@@ -391,7 +386,7 @@ func (l *Live) cleanup(ctx context.Context, id int64, chunkId int) {
 		delTime := l.live.Stop.Add(waitBeforeDelete)
 		log.Debug("ctx done, remove all chunks. wait until live ends", slog.Time("until", delTime))
 		time.Sleep(time.Until(delTime))
-		if err := os.RemoveAll(l.dir + "/" + ffmpeg.Dir(id)); err != nil {
+		if err := os.RemoveAll(l.dir + "/" + ffmpeg.DirLive(id)); err != nil {
 			log.Error("failed to clear dir", slog.Int64("id", id), sl.Err(err))
 		}
 		log.Debug("removed chunks")
