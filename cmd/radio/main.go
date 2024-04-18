@@ -31,6 +31,8 @@ func main() {
 		log,
 		cfg.Address,
 		cfg.StoragePath,
+		cfg.Timeout,
+		cfg.IddleTimeout,
 		cfg.TokenTTL,
 		getSecret(),
 		getRootPass(),

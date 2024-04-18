@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/gofiber/fiber/v2"
@@ -19,12 +20,14 @@ import (
 // TODO: check if controller really delete tmp files
 
 func New(
+	timeout time.Duration,
 	srvMedia Media,
 	srvSrc Source,
 	jwtC *jwtController.JWT,
 	tmpDir string,
 ) *fiber.App {
 	mediaCtr := mediaController{
+		timeout:  timeout,
 		srvMedia: srvMedia,
 		srvSrc:   srvSrc,
 		tmpDir:   tmpDir,
@@ -57,6 +60,7 @@ func New(
 }
 
 type mediaController struct {
+	timeout  time.Duration
 	srvMedia Media
 	srvSrc   Source
 	tmpDir   string
@@ -93,6 +97,9 @@ type Source interface {
 // searchMedia returns media list filtered and sorted
 // by query criteria.
 func (mediaCtr *mediaController) searchMedia(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), mediaCtr.timeout)
+	defer cancel()
+
 	var tags []string
 	if s := c.Query("tags"); s != "" {
 		tags = strings.Split(c.Query("tags"), ",")
@@ -105,7 +112,7 @@ func (mediaCtr *mediaController) searchMedia(c *fiber.Ctx) error {
 		MaxRespLen: c.QueryInt("res_len"),
 	}
 
-	lib, err := mediaCtr.srvMedia.SearchMedia(context.TODO(), filter)
+	lib, err := mediaCtr.srvMedia.SearchMedia(ctx, filter)
 	if err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -117,6 +124,9 @@ func (mediaCtr *mediaController) searchMedia(c *fiber.Ctx) error {
 
 // newMedia saves sended file and creates media
 func (mediaCtr *mediaController) newMedia(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), mediaCtr.timeout)
+	defer cancel()
+
 	payload := c.FormValue("media")
 	if payload == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -202,11 +212,11 @@ func (mediaCtr *mediaController) newMedia(c *fiber.Ctx) error {
 	// TODO: move this code to goroutine
 
 	// TODO: enhance error statuses
-	if err := mediaCtr.srvSrc.UploadSource(context.TODO(), tmpFileName, &media); err != nil {
+	if err := mediaCtr.srvSrc.UploadSource(ctx, tmpFileName, &media); err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	id, err := mediaCtr.srvMedia.NewMedia(context.TODO(), media)
+	id, err := mediaCtr.srvMedia.NewMedia(ctx, media)
 	if err != nil {
 		if errors.Is(err, service.ErrTagNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -223,6 +233,9 @@ func (mediaCtr *mediaController) newMedia(c *fiber.Ctx) error {
 
 // updateMedia updates media information
 func (mediaCtr *mediaController) updateMedia(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), mediaCtr.timeout)
+	defer cancel()
+
 	var request struct {
 		Media models.Media `json:"media"`
 	}
@@ -247,7 +260,7 @@ func (mediaCtr *mediaController) updateMedia(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := mediaCtr.srvMedia.UpdateMedia(context.TODO(), request.Media); err != nil {
+	if err := mediaCtr.srvMedia.UpdateMedia(ctx, request.Media); err != nil {
 		if errors.Is(err, service.ErrMediaNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "media not found",
@@ -266,6 +279,9 @@ func (mediaCtr *mediaController) updateMedia(c *fiber.Ctx) error {
 
 // multiTag add tag to media list
 func (mediaCtr *mediaController) multiTag(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), mediaCtr.timeout)
+	defer cancel()
+
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -273,7 +289,7 @@ func (mediaCtr *mediaController) multiTag(c *fiber.Ctx) error {
 		})
 	}
 
-	tag, err := mediaCtr.srvMedia.Tag(context.TODO(), id)
+	tag, err := mediaCtr.srvMedia.Tag(ctx, id)
 	if err != nil {
 		if errors.Is(err, service.ErrTagNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -297,7 +313,7 @@ func (mediaCtr *mediaController) multiTag(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := mediaCtr.srvMedia.MultiTagMedia(context.TODO(), tag, request.Ids...); err != nil {
+	if err := mediaCtr.srvMedia.MultiTagMedia(ctx, tag, request.Ids...); err != nil {
 		if errors.Is(err, service.ErrTagNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "tag not found",
@@ -311,6 +327,9 @@ func (mediaCtr *mediaController) multiTag(c *fiber.Ctx) error {
 
 // media return json with media by id
 func (mediaCtr *mediaController) media(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), mediaCtr.timeout)
+	defer cancel()
+
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -318,7 +337,7 @@ func (mediaCtr *mediaController) media(c *fiber.Ctx) error {
 		})
 	}
 
-	media, err := mediaCtr.srvMedia.Media(context.TODO(), id)
+	media, err := mediaCtr.srvMedia.Media(ctx, id)
 	if err != nil {
 		if errors.Is(err, service.ErrMediaNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -336,6 +355,9 @@ func (mediaCtr *mediaController) media(c *fiber.Ctx) error {
 // source returns source file
 // corresponding to media
 func (mediaCtr *mediaController) source(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), mediaCtr.timeout)
+	defer cancel()
+
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -343,7 +365,7 @@ func (mediaCtr *mediaController) source(c *fiber.Ctx) error {
 		})
 	}
 
-	media, err := mediaCtr.srvMedia.Media(context.TODO(), id)
+	media, err := mediaCtr.srvMedia.Media(ctx, id)
 	if err != nil {
 		if errors.Is(err, service.ErrMediaNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -354,7 +376,7 @@ func (mediaCtr *mediaController) source(c *fiber.Ctx) error {
 	}
 
 	// TODO: enhance error statuses
-	sourceFile, err := mediaCtr.srvSrc.LoadSource(context.TODO(), mediaCtr.tmpDir, media)
+	sourceFile, err := mediaCtr.srvSrc.LoadSource(ctx, mediaCtr.tmpDir, media)
 	if err != nil {
 		c.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -364,6 +386,9 @@ func (mediaCtr *mediaController) source(c *fiber.Ctx) error {
 
 // deleteEditor deletes editor
 func (mediaCtr *mediaController) deleteMedia(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), mediaCtr.timeout)
+	defer cancel()
+
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -372,7 +397,7 @@ func (mediaCtr *mediaController) deleteMedia(c *fiber.Ctx) error {
 	}
 
 	// TODO: enhance error statuses
-	media, err := mediaCtr.srvMedia.Media(context.TODO(), id)
+	media, err := mediaCtr.srvMedia.Media(ctx, id)
 	if err != nil {
 		if errors.Is(err, service.ErrMediaNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -383,11 +408,11 @@ func (mediaCtr *mediaController) deleteMedia(c *fiber.Ctx) error {
 	}
 
 	// TODO: enhance error statuses
-	if err = mediaCtr.srvSrc.DeleteSource(context.TODO(), media); err != nil {
+	if err = mediaCtr.srvSrc.DeleteSource(ctx, media); err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	if err = mediaCtr.srvMedia.DeleteMedia(context.TODO(), id); err != nil {
+	if err = mediaCtr.srvMedia.DeleteMedia(ctx, id); err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
@@ -395,7 +420,10 @@ func (mediaCtr *mediaController) deleteMedia(c *fiber.Ctx) error {
 }
 
 func (mediaCtr *mediaController) tagTypes(c *fiber.Ctx) error {
-	tags, err := mediaCtr.srvMedia.TagTypes(context.TODO())
+	ctx, cancel := context.WithTimeout(context.Background(), mediaCtr.timeout)
+	defer cancel()
+
+	tags, err := mediaCtr.srvMedia.TagTypes(ctx)
 	if err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -407,7 +435,10 @@ func (mediaCtr *mediaController) tagTypes(c *fiber.Ctx) error {
 
 // allTags returns all registered tags.
 func (mediaCtr *mediaController) allTags(c *fiber.Ctx) error {
-	tags, err := mediaCtr.srvMedia.AllTags(context.TODO())
+	ctx, cancel := context.WithTimeout(context.Background(), mediaCtr.timeout)
+	defer cancel()
+
+	tags, err := mediaCtr.srvMedia.AllTags(ctx)
 	if err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -419,6 +450,9 @@ func (mediaCtr *mediaController) allTags(c *fiber.Ctx) error {
 
 // newTag create new tag.
 func (mediaCtr *mediaController) newTag(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), mediaCtr.timeout)
+	defer cancel()
+
 	var request struct {
 		Tag models.Tag `json:"tag"`
 	}
@@ -433,7 +467,7 @@ func (mediaCtr *mediaController) newTag(c *fiber.Ctx) error {
 		})
 	}
 
-	id, err := mediaCtr.srvMedia.SaveTag(context.TODO(), request.Tag)
+	id, err := mediaCtr.srvMedia.SaveTag(ctx, request.Tag)
 	if err != nil {
 		if errors.Is(err, service.ErrTagTypeNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -455,6 +489,9 @@ func (mediaCtr *mediaController) newTag(c *fiber.Ctx) error {
 
 // tag returns tag by its id.
 func (mediaCtr *mediaController) tag(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), mediaCtr.timeout)
+	defer cancel()
+
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -462,7 +499,7 @@ func (mediaCtr *mediaController) tag(c *fiber.Ctx) error {
 		})
 	}
 
-	tag, err := mediaCtr.srvMedia.Tag(context.TODO(), id)
+	tag, err := mediaCtr.srvMedia.Tag(ctx, id)
 	if err != nil {
 		if errors.Is(err, service.ErrTagNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -484,6 +521,9 @@ func (mediaCtr *mediaController) tag(c *fiber.Ctx) error {
 
 // updateTag updates tag.
 func (mediaCtr *mediaController) updateTag(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), mediaCtr.timeout)
+	defer cancel()
+
 	var request struct {
 		Tag models.Tag `json:"tag"`
 	}
@@ -498,7 +538,7 @@ func (mediaCtr *mediaController) updateTag(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := mediaCtr.srvMedia.UpdateTag(context.TODO(), request.Tag); err != nil {
+	if err := mediaCtr.srvMedia.UpdateTag(ctx, request.Tag); err != nil {
 		if errors.Is(err, service.ErrTagTypeInvalid) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "invalied tag type",
@@ -517,6 +557,9 @@ func (mediaCtr *mediaController) updateTag(c *fiber.Ctx) error {
 
 // deleteTag deletes tag by its id
 func (mediaCtr *mediaController) deleteTag(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), mediaCtr.timeout)
+	defer cancel()
+
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -524,7 +567,7 @@ func (mediaCtr *mediaController) deleteTag(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := mediaCtr.srvMedia.DeleteTag(context.TODO(), id); err != nil {
+	if err := mediaCtr.srvMedia.DeleteTag(ctx, id); err != nil {
 		if errors.Is(err, service.ErrTagNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "tag not found",

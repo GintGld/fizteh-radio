@@ -14,9 +14,10 @@ import (
 )
 
 type scheduleController struct {
-	schSrv Schedule
-	dj     DJ
-	live   Live
+	timeout time.Duration
+	schSrv  Schedule
+	dj      DJ
+	live    Live
 }
 
 type Schedule interface {
@@ -43,15 +44,17 @@ type Live interface {
 }
 
 func New(
+	timeout time.Duration,
 	schSrv Schedule,
 	dj DJ,
 	live Live,
 	jwtC *jwtController.JWT,
 ) *fiber.App {
 	schCtr := scheduleController{
-		schSrv: schSrv,
-		dj:     dj,
-		live:   live,
+		timeout: timeout,
+		schSrv:  schSrv,
+		dj:      dj,
+		live:    live,
 	}
 
 	app := fiber.New()
@@ -81,6 +84,9 @@ func New(
 // scheduleCut returns segments intersecting given interval
 // if
 func (schCtr *scheduleController) scheduleCut(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), schCtr.timeout)
+	defer cancel()
+
 	// Default values for cut
 	start := time.Unix(0, 0)
 	stop := time.Date(2100, 1, 1, 0, 0, 0, 0, time.Local)
@@ -98,7 +104,7 @@ func (schCtr *scheduleController) scheduleCut(c *fiber.Ctx) error {
 		})
 	}
 
-	segments, err := schCtr.schSrv.ScheduleCut(context.TODO(), start, stop)
+	segments, err := schCtr.schSrv.ScheduleCut(ctx, start, stop)
 	if err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -111,12 +117,15 @@ func (schCtr *scheduleController) scheduleCut(c *fiber.Ctx) error {
 // live returns all registered live streams
 // stopping after given time point.
 func (schCtr *scheduleController) lives(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), schCtr.timeout)
+	defer cancel()
+
 	start := time.Date(0, 0, 0, 0, 0, 0, 0, time.Local)
 	if i := c.QueryInt("start"); i != 0 {
 		start = time.Unix(int64(i), 0)
 	}
 
-	res, err := schCtr.schSrv.Lives(context.TODO(), start)
+	res, err := schCtr.schSrv.Lives(ctx, start)
 	if err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -128,6 +137,9 @@ func (schCtr *scheduleController) lives(c *fiber.Ctx) error {
 
 // newSegment registers new segment
 func (schCtr *scheduleController) newSegment(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), schCtr.timeout)
+	defer cancel()
+
 	type request struct {
 		Segment models.Segment `json:"segment"`
 	}
@@ -159,7 +171,7 @@ func (schCtr *scheduleController) newSegment(c *fiber.Ctx) error {
 		})
 	}
 
-	id, err := schCtr.schSrv.NewSegment(context.TODO(), form.Segment)
+	id, err := schCtr.schSrv.NewSegment(ctx, form.Segment)
 	if err != nil {
 		if errors.Is(err, service.ErrMediaNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -196,6 +208,9 @@ func (schCtr *scheduleController) newSegment(c *fiber.Ctx) error {
 
 // segment returns segment by id
 func (schCtr *scheduleController) segment(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), schCtr.timeout)
+	defer cancel()
+
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -203,7 +218,7 @@ func (schCtr *scheduleController) segment(c *fiber.Ctx) error {
 		})
 	}
 
-	segment, err := schCtr.schSrv.Segment(context.TODO(), id)
+	segment, err := schCtr.schSrv.Segment(ctx, id)
 	if err != nil {
 		if errors.Is(err, service.ErrSegmentNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -220,6 +235,9 @@ func (schCtr *scheduleController) segment(c *fiber.Ctx) error {
 
 // deleteSegment deletes segment by id
 func (schCtr *scheduleController) deleteSegment(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), schCtr.timeout)
+	defer cancel()
+
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -227,7 +245,7 @@ func (schCtr *scheduleController) deleteSegment(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := schCtr.schSrv.DeleteSegment(context.TODO(), id); err != nil {
+	if err := schCtr.schSrv.DeleteSegment(ctx, id); err != nil {
 		if errors.Is(err, service.ErrSegmentNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "segment not found",
@@ -241,6 +259,9 @@ func (schCtr *scheduleController) deleteSegment(c *fiber.Ctx) error {
 
 // clearSchedule clear schedule from given timestamp
 func (schCtr *scheduleController) clearSchedule(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), schCtr.timeout)
+	defer cancel()
+
 	fromInt := c.QueryInt("from", -1)
 	if fromInt == -1 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -250,7 +271,7 @@ func (schCtr *scheduleController) clearSchedule(c *fiber.Ctx) error {
 
 	from := time.Unix(int64(fromInt), 0)
 
-	if err := schCtr.schSrv.ClearSchedule(context.TODO(), from); err != nil {
+	if err := schCtr.schSrv.ClearSchedule(ctx, from); err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 

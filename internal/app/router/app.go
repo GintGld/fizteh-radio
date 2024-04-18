@@ -45,6 +45,8 @@ func New(
 	log *slog.Logger,
 	storage *sqlite.Storage,
 	address string,
+	timeout time.Duration,
+	idleTimeout time.Duration,
 	tokenTTL time.Duration,
 	secret []byte,
 	rootPass []byte,
@@ -183,16 +185,17 @@ func New(
 
 	// 300 MB limit for body message (~ 2.1 hours for .mp3 with 320 kbit/s)
 	app := fiber.New(fiber.Config{
-		BodyLimit: 300 * 1024 * 1024,
+		IdleTimeout: idleTimeout,
+		BodyLimit:   300 * 1024 * 1024,
 	})
 
 	// Mount controllers to an app
-	app.Mount("/login", authCtr.New(auth))
-	app.Mount("/root", rootCtr.New(root, jwtCtr))
-	app.Mount("/library", mediaCtr.New(lib, src, jwtCtr, tmpDir))
-	app.Mount("/schedule", schCtr.New(sch, dj, live, jwtCtr))
+	app.Mount("/login", authCtr.New(timeout, auth))
+	app.Mount("/root", rootCtr.New(timeout, root, jwtCtr))
+	app.Mount("/library", mediaCtr.New(timeout, lib, src, jwtCtr, tmpDir))
+	app.Mount("/schedule", schCtr.New(timeout, sch, dj, live, jwtCtr))
 	app.Mount("/radio", dashCtr.New(manPath, contentDir, jwtCtr, dash))
-	app.Mount("/stat", statCtr.New(stat))
+	app.Mount("/stat", statCtr.New(timeout, stat))
 
 	// In debug mode there's no proxy that serves static files.
 	if log.Enabled(context.Background(), slog.LevelDebug) {

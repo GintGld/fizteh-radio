@@ -75,7 +75,7 @@ func (a *Auth) Login(ctx context.Context, login string, password string) (string
 	return token, nil
 }
 
-func (a *Auth) loginRoot(ctx context.Context, password string) (string, error) {
+func (a *Auth) loginRoot(_ context.Context, password string) (string, error) {
 	const op = "Auth.login.Root"
 
 	log := a.log.With(

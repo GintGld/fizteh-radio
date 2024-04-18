@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -19,9 +20,14 @@ import (
 
 // New returns fiber app that will
 // handle requests special for root
-func New(rootSrv Root, jwtC *jwtController.JWT) *fiber.App {
+func New(
+	timeout time.Duration,
+	rootSrv Root,
+	jwtC *jwtController.JWT,
+) *fiber.App {
 	rootCtr := rootController{
-		srv: rootSrv,
+		timeout: timeout,
+		srv:     rootSrv,
 	}
 
 	app := fiber.New()
@@ -38,7 +44,8 @@ func New(rootSrv Root, jwtC *jwtController.JWT) *fiber.App {
 }
 
 type rootController struct {
-	srv Root
+	timeout time.Duration
+	srv     Root
 }
 
 type Root interface {
@@ -81,7 +88,10 @@ func (rootCtr *rootController) rootAccess(c *fiber.Ctx) error {
 
 // allEditors return json with all editors
 func (rootCtr *rootController) allEditors(c *fiber.Ctx) error {
-	editors, err := rootCtr.srv.AllEditors(context.TODO())
+	ctx, cancel := context.WithTimeout(context.Background(), rootCtr.timeout)
+	defer cancel()
+
+	editors, err := rootCtr.srv.AllEditors(ctx)
 	if err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -93,6 +103,9 @@ func (rootCtr *rootController) allEditors(c *fiber.Ctx) error {
 
 // editor return json with editor by id
 func (rootCtr *rootController) editor(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), rootCtr.timeout)
+	defer cancel()
+
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -100,7 +113,7 @@ func (rootCtr *rootController) editor(c *fiber.Ctx) error {
 		})
 	}
 
-	editor, err := rootCtr.srv.Editor(context.TODO(), id)
+	editor, err := rootCtr.srv.Editor(ctx, id)
 	if err != nil {
 		if errors.Is(err, service.ErrEditorNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -120,6 +133,9 @@ func (rootCtr *rootController) editor(c *fiber.Ctx) error {
 
 // newEditor creates new editor
 func (rootCtr *rootController) newEditor(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), rootCtr.timeout)
+	defer cancel()
+
 	var form models.EditorIn
 
 	if err := c.BodyParser(&form); err != nil {
@@ -137,7 +153,7 @@ func (rootCtr *rootController) newEditor(c *fiber.Ctx) error {
 		})
 	}
 
-	id, err := rootCtr.srv.RegisterNewEditor(context.TODO(), form)
+	id, err := rootCtr.srv.RegisterNewEditor(ctx, form)
 	if err != nil {
 		if errors.Is(err, service.ErrEditorExists) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -154,6 +170,9 @@ func (rootCtr *rootController) newEditor(c *fiber.Ctx) error {
 
 // deleteEditor deletes editor
 func (rootCtr *rootController) deleteEditor(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), rootCtr.timeout)
+	defer cancel()
+
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -161,7 +180,7 @@ func (rootCtr *rootController) deleteEditor(c *fiber.Ctx) error {
 		})
 	}
 
-	err = rootCtr.srv.DeleteEditor(context.TODO(), id)
+	err = rootCtr.srv.DeleteEditor(ctx, id)
 	if err != nil {
 		if errors.Is(err, service.ErrEditorNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

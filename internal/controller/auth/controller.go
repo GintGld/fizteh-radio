@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/internal/service"
@@ -14,9 +15,13 @@ import (
 // New returns an fiber.App that will
 // authorize editors (including root)
 // and return JWT
-func New(a Auth) *fiber.App {
+func New(
+	timeout time.Duration,
+	a Auth,
+) *fiber.App {
 	authCtr := authController{
-		srv: a,
+		timeout: timeout,
+		srv:     a,
 	}
 
 	app := fiber.New()
@@ -27,7 +32,8 @@ func New(a Auth) *fiber.App {
 }
 
 type authController struct {
-	srv Auth
+	timeout time.Duration
+	srv     Auth
 }
 
 type Auth interface {
@@ -36,6 +42,9 @@ type Auth interface {
 
 // login
 func (authCtr *authController) login(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), authCtr.timeout)
+	defer cancel()
+
 	form := new(models.EditorIn)
 
 	if err := c.BodyParser(form); err != nil {
@@ -54,7 +63,7 @@ func (authCtr *authController) login(c *fiber.Ctx) error {
 		})
 	}
 
-	token, err := authCtr.srv.Login(context.TODO(), form.Login, form.Pass)
+	token, err := authCtr.srv.Login(ctx, form.Login, form.Pass)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

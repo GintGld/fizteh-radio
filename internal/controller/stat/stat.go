@@ -10,10 +10,12 @@ import (
 )
 
 func New(
+	timeout time.Duration,
 	stat Stat,
 ) *fiber.App {
 	statCtr := &statController{
-		stat: stat,
+		timeout: timeout,
+		stat:    stat,
 	}
 
 	app := fiber.New()
@@ -27,7 +29,8 @@ func New(
 }
 
 type statController struct {
-	stat Stat
+	timeout time.Duration
+	stat    Stat
 }
 
 type Stat interface {
@@ -71,6 +74,9 @@ func (statCtr *statController) listenersNumber(c *fiber.Ctx) error {
 }
 
 func (statCtr *statController) listeners(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), statCtr.timeout)
+	defer cancel()
+
 	// Default values for cut
 	start := time.Unix(0, 0)
 	stop := time.Date(2100, 1, 1, 0, 0, 0, 0, time.Local)
@@ -88,7 +94,7 @@ func (statCtr *statController) listeners(c *fiber.Ctx) error {
 		})
 	}
 
-	res, err := statCtr.stat.Listeners(context.TODO(), start, stop)
+	res, err := statCtr.stat.Listeners(ctx, start, stop)
 	if err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
