@@ -43,6 +43,7 @@ func (s *Storage) ScheduleCut(ctx context.Context, start time.Time, stop time.Ti
 	if err != nil {
 		return []models.Segment{}, fmt.Errorf("%s: %w", op, err)
 	}
+	defer rows.Close()
 
 	segments := make([]models.Segment, 0)
 	var (
@@ -301,6 +302,7 @@ func (s *Storage) GetLive(ctx context.Context, start time.Time) ([]models.Live, 
 	if err != nil {
 		return []models.Live{}, fmt.Errorf("%s: %w", op, err)
 	}
+	defer rows.Close()
 
 	lives := make([]models.Live, 0)
 	live := models.Live{}

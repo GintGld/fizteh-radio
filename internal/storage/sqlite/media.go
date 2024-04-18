@@ -35,6 +35,7 @@ func (s *Storage) AllMedia(ctx context.Context, limit, offset int) ([]models.Med
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
+	defer rows.Close()
 
 	res := make([]models.Media, 0, limit)
 
@@ -111,18 +112,13 @@ func (s *Storage) UpdateMediaBasicInfo(ctx context.Context, media models.Media) 
 	return nil
 }
 
+// TODO: move media contruct to service.
+
 // Media return media file by id.
 func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 	const op = "storage.sqlite.Media"
 
-	// start transaction
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return models.Media{}, fmt.Errorf("%s: %w", op, err)
-	}
-	defer tx.Rollback()
-
-	media, err := s.mediaSubBasicInfo(tx, ctx, id)
+	media, err := s.mediaSubBasicInfo(ctx, id)
 	if err != nil {
 		if errors.Is(err, storage.ErrMediaNotFound) {
 			return models.Media{}, storage.ErrMediaNotFound
@@ -130,26 +126,22 @@ func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 		return models.Media{}, fmt.Errorf("%s: %w", op, err)
 	}
 
-	tags, err := s.mediaSubTags(tx, ctx, id)
+	tags, err := s.mediaSubTags(ctx, id)
 	if err != nil {
 		return models.Media{}, fmt.Errorf("%s: %w", op, err)
 	}
-
-	tx.Commit()
 
 	media.Tags = tags
 
 	return media, nil
 }
 
-// TODO: remove sub commands
-
 // mediaSubBasicInfo returns media with basic information
 // bt its id.
-func (s *Storage) mediaSubBasicInfo(tx statementBuilder, ctx context.Context, id int64) (models.Media, error) {
+func (s *Storage) mediaSubBasicInfo(ctx context.Context, id int64) (models.Media, error) {
 	const op = "storage.sqlite.mediaSubBasicInfo"
 
-	stmt, err := tx.PrepareContext(ctx, "SELECT name, author, duration, source_id FROM library WHERE id = ?")
+	stmt, err := s.db.PrepareContext(ctx, "SELECT name, author, duration, source_id FROM library WHERE id = ?")
 	if err != nil {
 		return models.Media{}, fmt.Errorf("%s: %w", op, err)
 	}
@@ -181,10 +173,10 @@ func (s *Storage) mediaSubBasicInfo(tx statementBuilder, ctx context.Context, id
 }
 
 // mediaSubTags returns tag list by given media id.
-func (s *Storage) mediaSubTags(tx statementBuilder, ctx context.Context, id int64) (models.TagList, error) {
+func (s *Storage) mediaSubTags(ctx context.Context, id int64) (models.TagList, error) {
 	const op = "storage.sqlite.mediaSubTags"
 
-	stmt, err := tx.PrepareContext(ctx, `
+	stmt, err := s.db.PrepareContext(ctx, `
 		SELECT t.id, t.name, tt.id, tt.name
 		FROM libraryTag AS lt
 		JOIN tag as t ON t.id = lt.tag_id
@@ -201,6 +193,7 @@ func (s *Storage) mediaSubTags(tx statementBuilder, ctx context.Context, id int6
 	if err != nil {
 		return models.TagList{}, fmt.Errorf("%s: %w", op, err)
 	}
+	defer rows.Close()
 
 	var tag models.Tag
 	tags := make(models.TagList, 0)
@@ -235,6 +228,7 @@ func (s *Storage) MediaTags(ctx context.Context, id int64) (models.TagList, erro
 	if err != nil {
 		return models.TagList{}, fmt.Errorf("%s: %w", op, err)
 	}
+	defer rows.Close()
 
 	var tag models.Tag
 	tags := make(models.TagList, 0)
@@ -305,6 +299,7 @@ func (s *Storage) updateTagTypes(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
+	defer rows.Close()
 
 	var tagType models.TagType
 	s.tagCache.tagTypes = make(models.TagTypes, 0)

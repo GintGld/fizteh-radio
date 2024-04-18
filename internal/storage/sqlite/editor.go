@@ -105,6 +105,7 @@ func (s *Storage) AllEditors(ctx context.Context) ([]models.Editor, error) {
 	if err != nil {
 		return []models.Editor{}, fmt.Errorf("%s: %w", op, err)
 	}
+	defer rows.Close()
 
 	editors := make([]models.Editor, 0)
 	var editor models.Editor

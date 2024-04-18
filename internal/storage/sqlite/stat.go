@@ -44,6 +44,7 @@ func (s *Storage) Listeners(ctx context.Context, start, stop time.Time) ([]model
 	if err != nil {
 		return []models.Listener{}, fmt.Errorf("%s: %w", op, err)
 	}
+	defer rows.Close()
 
 	res := make([]models.Listener, 0)
 	var (
