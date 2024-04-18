@@ -27,6 +27,7 @@ const (
 
 type Live struct {
 	log          *slog.Logger
+	timeout      time.Duration
 	sch          Schedule
 	delay        time.Duration
 	stepDuration time.Duration
@@ -56,6 +57,7 @@ type Schedule interface {
 
 func New(
 	log *slog.Logger,
+	timeout time.Duration,
 	sch Schedule,
 	delay time.Duration,
 	stepDuration time.Duration,
@@ -67,6 +69,7 @@ func New(
 ) *Live {
 	return &Live{
 		log:          log,
+		timeout:      timeout,
 		sch:          sch,
 		delay:        delay,
 		stepDuration: stepDuration,
@@ -112,7 +115,13 @@ func (l *Live) Run(ctx context.Context, live models.Live) error {
 	}
 
 	// Register new live
-	if id, err := l.sch.NewLive(ctx, l.live); err != nil {
+	ctxLive, cancelLive := context.WithTimeout(ctx, l.timeout)
+	defer cancelLive()
+	if id, err := l.sch.NewLive(ctxLive, l.live); err != nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("sch.NewLive timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to register live", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	} else {
@@ -131,20 +140,32 @@ func (l *Live) Run(ctx context.Context, live models.Live) error {
 		LiveId:    l.live.ID,
 	}
 	// Clear space for live.
-	if err := l.clearSpace(ctx, *reservedSegm.Start, reservedSegm.End()); err != nil {
+	ctxClearSpace, cancelClearSpace := context.WithTimeout(ctx, l.timeout)
+	defer cancelClearSpace()
+	if err := l.clearSpace(ctxClearSpace, *reservedSegm.Start, reservedSegm.End()); err != nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("clearSpace timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to clear space", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	// Register segment.
-	id, err := l.sch.NewSegment(ctx, reservedSegm)
+	ctxNewSeg, cancelNewSeg := context.WithTimeout(ctx, l.timeout)
+	defer cancelNewSeg()
+	id, err := l.sch.NewSegment(ctxNewSeg, reservedSegm)
 	if err != nil {
 		if errors.Is(err, service.ErrSegmentIntersection) {
 			log.Warn("intersecting protected segment, clearing failed")
 			return fmt.Errorf("%s: %w", op, err)
-		} else {
-			log.Error("failed to create segment", sl.Err(err))
-			return fmt.Errorf("%s: %w", op, err)
 		}
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("sch.NewSegment timeout exceeded")
+			return service.ErrTimeout
+		}
+		log.Error("failed to create segment", sl.Err(err))
+		return fmt.Errorf("%s: %w", op, err)
+
 	}
 	reservedSegm.ID = ptr.Ptr(id)
 
@@ -172,11 +193,23 @@ main_loop:
 	for {
 		*reservedSegm.StopCut += l.stepDuration
 		// Clear space for live.
-		if err := l.clearSpace(ctx, *reservedSegm.Start, reservedSegm.End()); err != nil {
+		ctxClearSpace, cancelClearSpace := context.WithTimeout(ctx, l.timeout)
+		defer cancelClearSpace()
+		if err := l.clearSpace(ctxClearSpace, *reservedSegm.Start, reservedSegm.End()); err != nil {
+			if errors.Is(err, service.ErrTimeout) {
+				log.Error("clearSpace timeout exceeded")
+				return service.ErrTimeout
+			}
 			log.Error("failed to clear space", sl.Err(err))
 			return fmt.Errorf("%s: %w", op, err)
 		}
-		if err := l.sch.UpdateSegmentTiming(ctx, reservedSegm); err != nil {
+		ctxUpdateTiming, cancelUpdateTiming := context.WithTimeout(ctx, l.timeout)
+		defer cancelUpdateTiming()
+		if err := l.sch.UpdateSegmentTiming(ctxUpdateTiming, reservedSegm); err != nil {
+			if errors.Is(err, service.ErrTimeout) {
+				log.Error("sch.UpdateSegmentTiming timeout exceeded")
+				return service.ErrTimeout
+			}
 			log.Error("failed to change segment timing")
 			return fmt.Errorf("%s: %w", op, err)
 		}
@@ -200,12 +233,24 @@ main_loop:
 
 	log.Debug("set live stop", slog.Time("stop", live.Stop))
 
-	if err := l.sch.SetLiveStop(ctx, l.live); err != nil {
+	ctxLiveStop, cancelLiveStop := context.WithTimeout(ctx, l.timeout)
+	defer cancelLiveStop()
+	if err := l.sch.SetLiveStop(ctxLiveStop, l.live); err != nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("sch.SetLiveStop timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to set live stop", slog.Int64("id", l.live.ID), sl.Err(err))
 	}
 	// Update live StopCut.
 	*reservedSegm.StopCut = time.Since(l.live.Start)
-	if err := l.sch.UpdateSegmentTiming(ctx, reservedSegm); err != nil {
+	ctxUpdateTiming, cancelUpdateTiming := context.WithTimeout(ctx, l.timeout)
+	defer cancelUpdateTiming()
+	if err := l.sch.UpdateSegmentTiming(ctxUpdateTiming, reservedSegm); err != nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("sch.UpdateSegmentTiming timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to change segment timing")
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -327,6 +372,10 @@ func (l *Live) clearSpace(ctx context.Context, start, stop time.Time) error {
 
 	res, err := l.sch.ScheduleCut(ctx, start, stop)
 	if err != nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("sch.ScheduleCut timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to get schedule cut", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -334,6 +383,10 @@ func (l *Live) clearSpace(ctx context.Context, start, stop time.Time) error {
 	for _, s := range res {
 		if s.Protected && s.LiveId == 0 {
 			if err := l.sch.DeleteSegment(ctx, *s.ID); err != nil {
+				if errors.Is(err, service.ErrTimeout) {
+					log.Error("sch.ScheduleCut timeout exceeded")
+					return service.ErrTimeout
+				}
 				log.Error("failed to delete segment", slog.Int64("id", *s.ID), sl.Err(err))
 				return fmt.Errorf("%s: %w", op, err)
 			}

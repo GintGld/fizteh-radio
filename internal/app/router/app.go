@@ -123,6 +123,7 @@ func New(
 	// AutoDJ
 	dj := djSrv.New(
 		log,
+		timeout,
 		lib,
 		sch,
 		djCacheFile,
@@ -132,6 +133,7 @@ func New(
 	// Live streaming
 	live := liveSrv.New(
 		log,
+		timeout,
 		sch,
 		liveDelay,
 		liveStep,
@@ -164,6 +166,7 @@ func New(
 	// Dash goroutine
 	dash := dashSrv.New(
 		log,
+		timeout,
 		dashUpdateFreq,
 		dashHorizon,
 		man,

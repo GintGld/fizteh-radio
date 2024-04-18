@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -9,12 +10,14 @@ import (
 
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
 	"github.com/GintGld/fizteh-radio/internal/models"
+	"github.com/GintGld/fizteh-radio/internal/service"
 )
 
 // TODO: add metadata storage and get correct information from it
 
 type Dash struct {
 	log        *slog.Logger
+	ctxTimeout time.Duration
 	updateFreq time.Duration
 	horizon    time.Duration
 	manifest   Manifest
@@ -32,6 +35,7 @@ type Dash struct {
 // New returns new dash manager
 func New(
 	log *slog.Logger,
+	ctxTimeout time.Duration,
 	updateFreq time.Duration,
 	horizon time.Duration,
 	manifest Manifest,
@@ -41,6 +45,7 @@ func New(
 ) *Dash {
 	return &Dash{
 		log:        log,
+		ctxTimeout: ctxTimeout,
 		updateFreq: updateFreq,
 		horizon:    horizon,
 		manifest:   manifest,
@@ -103,14 +108,22 @@ func (d *Dash) Run(ctx context.Context) error {
 mainloop:
 	for {
 		// Get actual schedule
+		ctxSchCut, cancelSchCut := context.WithTimeout(ctx, d.ctxTimeout)
+		defer cancelSchCut()
 		now := time.Now()
-		schedule, err := d.schedule.ScheduleCut(ctx, now, now.Add(d.horizon))
+		schedule, err := d.schedule.ScheduleCut(ctxSchCut, now, now.Add(d.horizon))
 		if err != nil {
+			if errors.Is(err, service.ErrTimeout) {
+				log.Error("schedule cut timeout exceeded, wait next iteration")
+				goto select_case_with_timer
+			}
 			log.Error("failed to load schedule", sl.Err(err))
 			return err
 		}
 
-		// Update manifest
+		// Update manifest.
+		// Do not set timeout since
+		// ctx not used in manifest.
 		if err := d.manifest.SetSchedule(ctx, schedule); err != nil {
 			log.Error("failed to update schedule")
 			return err
@@ -124,7 +137,13 @@ mainloop:
 		// Create dash chunks for non-live segments.
 		for _, segment := range schedule {
 			if segment.LiveId == 0 {
-				if err := d.content.Generate(ctx, segment); err != nil {
+				ctxContent, cancelContent := context.WithTimeout(ctx, d.ctxTimeout)
+				defer cancelContent()
+				if err := d.content.Generate(ctxContent, segment); err != nil {
+					if errors.Is(err, service.ErrTimeout) {
+						log.Error("content.Generate timout exceeded, wait next iteration")
+						goto select_case_with_timer
+					}
 					log.Error("failed to generate content", slog.Int64("id", *segment.ID), sl.Err(err))
 				}
 			}
@@ -134,6 +153,7 @@ mainloop:
 			log.Error("failed to clear cache", sl.Err(err))
 		}
 
+	select_case_with_timer:
 		timer := time.After(d.updateFreq)
 
 	select_case:

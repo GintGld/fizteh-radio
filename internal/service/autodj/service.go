@@ -38,10 +38,11 @@ var (
 
 type AutoDJ struct {
 	// Dependencies
-	log   *slog.Logger
-	media MediaSearcher
-	sch   Schedule
-	conf  models.AutoDJConfig
+	log     *slog.Logger
+	timeout time.Duration
+	media   MediaSearcher
+	sch     Schedule
+	conf    models.AutoDJConfig
 
 	// External notifying channels
 	scheduleChan         <-chan struct{}
@@ -69,6 +70,7 @@ type AutoDJ struct {
 
 func New(
 	log *slog.Logger,
+	timeout time.Duration,
 	media MediaSearcher,
 	sch Schedule,
 	cacheFile string,
@@ -76,9 +78,10 @@ func New(
 	mediaChan <-chan struct{},
 ) *AutoDJ {
 	a := &AutoDJ{
-		log:   log,
-		media: media,
-		sch:   sch,
+		log:     log,
+		timeout: timeout,
+		media:   media,
+		sch:     sch,
 		conf: models.AutoDJConfig{
 			Tags: make(models.TagList, 0),
 			Stub: models.AutoDJStub{
@@ -154,10 +157,16 @@ func (a *AutoDJ) Run(ctx context.Context) error {
 
 dj_start:
 	// Get library with given parameters.
-	if err := a.updateLibrary(ctx); err != nil {
+	ctxUpdLib, cancelUpdLib := context.WithTimeout(ctx, a.timeout)
+	defer cancelUpdLib()
+	if err := a.updateLibrary(ctxUpdLib); err != nil {
 		if errors.Is(err, service.ErrMediaNotFound) {
 			log.Error("library is empty, stop autodj")
 			return service.ErrMediaNotFound
+		}
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("updateLibrary timeout exceeded")
+			return service.ErrTimeout
 		}
 		log.Error("failed to update library", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
@@ -167,7 +176,13 @@ dj_start:
 	a.updateIndices()
 
 	// Update protected segments info.
-	if err := a.updateProtected(ctx); err != nil {
+	ctxUpdProt, cancelUpdProt := context.WithTimeout(ctx, a.timeout)
+	defer cancelUpdProt()
+	if err := a.updateProtected(ctxUpdProt); err != nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("updateProtected timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to update schedule", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -178,7 +193,13 @@ dj_start:
 		s   models.Segment
 		err error
 	)
-	if s, err = a.nowPlaying(ctx); err == nil {
+	ctxNowPlay, cancelNowPlay := context.WithTimeout(ctx, a.timeout)
+	defer cancelNowPlay()
+	if s, err = a.nowPlaying(ctxNowPlay); err == nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("nowPlaying timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Debug("something is playing now, start after that")
 		a.timeHorizon = s.End()
 		if err := a.sch.ClearSchedule(ctx, a.timeHorizon.Add(timeDelta)); err != nil {
@@ -201,35 +222,58 @@ main_loop:
 	for {
 		// Count how many dj segment
 		// are now in schedule
-		sch, err := a.sch.ScheduleCut(ctx, time.Now(), infinity)
+		ctxSchCut, cancelSchCut := context.WithTimeout(ctx, a.timeout)
+		defer cancelSchCut()
+		sch, err := a.sch.ScheduleCut(ctxSchCut, time.Now(), infinity)
 		if err != nil {
+			if errors.Is(err, service.ErrTimeout) {
+				log.Error("sch.ScheduleCut timeout exceeded, wait next iteration")
+				goto select_case_with_time
+			}
 			log.Error("failed to get schedule cut", sl.Err(err))
 			return fmt.Errorf("%s: %w", op, err)
 		}
-		counter := 0
-		for _, s := range sch {
-			if !s.Protected {
-				counter++
-			}
-		}
 
-		// Add segments to keep fixed number of them
-		// in schedule.
-		// If error occures, don't stop.
-		for i := counter; i <= segmentsBuff; i++ {
-			if err := a.addSegment(ctx); err != nil {
-				if errors.Is(err, service.ErrSegmentIntersection) {
-					log.Error("failed to add new segment (intersection)")
-				} else {
-					log.Error("failed to add new segment", sl.Err(err))
+		{
+			counter := 0
+			for _, s := range sch {
+				if !s.Protected {
+					counter++
+				}
+			}
+
+			// Add segments to keep fixed number of them
+			// in schedule.
+			// If error occures, don't stop.
+			for i := counter; i <= segmentsBuff; i++ {
+				ctxAddSeg, cancelAddSeg := context.WithTimeout(ctx, a.timeout)
+				defer cancelAddSeg()
+				if err := a.addSegment(ctxAddSeg); err != nil {
+					if errors.Is(err, service.ErrTimeout) {
+						log.Error("addSegment timeout exceeded, wait next iteration")
+						goto select_case_with_time
+					}
+					if errors.Is(err, service.ErrSegmentIntersection) {
+						log.Error("failed to add new segment (intersection)")
+					} else {
+						log.Error("failed to add new segment", sl.Err(err))
+					}
 				}
 			}
 		}
 
-		timer, err := a.getTimer(ctx)
+	select_case_with_time:
+		ctxTimer, cancelTimer := context.WithTimeout(ctx, a.timeout)
+		defer cancelTimer()
+		timer, err := a.getTimer(ctxTimer)
 		if err != nil {
-			log.Error("failed to get timer", sl.Err(err))
-			return fmt.Errorf("%s: %w", op, err)
+			if errors.Is(err, service.ErrTimeout) {
+				log.Error("getTimer timeout exceeded, set timer to timeDelta", slog.Float64("timeDelta", timeDelta.Seconds()))
+				timer = time.After(timeDelta)
+			} else {
+				log.Error("failed to get timer", sl.Err(err))
+				return fmt.Errorf("%s: %w", op, err)
+			}
 		}
 
 		select {
@@ -239,19 +283,31 @@ main_loop:
 			goto dj_start
 		case <-a.scheduleChanRedirect:
 			log.Debug("got schedule chan")
-			if err := a.updateProtected(ctx); err != nil {
-				log.Error("failed to update schedule", sl.Err(err))
-				return fmt.Errorf("%s: %w", op, err)
+			ctxUpdProt, cancelUpdProt := context.WithTimeout(ctx, a.timeout)
+			defer cancelUpdProt()
+			if err := a.updateProtected(ctxUpdProt); err != nil {
+				if errors.Is(err, service.ErrTimeout) {
+					log.Error("updateProtected timeout exceeded, wait next iteration", slog.Float64("timeDelta", timeDelta.Seconds()))
+				} else {
+					log.Error("failed to update schedule", sl.Err(err))
+					return fmt.Errorf("%s: %w", op, err)
+				}
 			}
 		case <-a.mediaChanRedirect:
 			log.Debug("got media chan")
-			if err := a.updateLibrary(ctx); err != nil {
+			ctxUpdLib, cancelUpdLib := context.WithTimeout(ctx, a.timeout)
+			defer cancelUpdLib()
+			if err := a.updateLibrary(ctxUpdLib); err != nil {
 				if errors.Is(err, service.ErrMediaNotFound) {
 					log.Error("library is empty, stop autodj")
 					return service.ErrMediaNotFound
 				}
-				log.Error("failed to update schedule", sl.Err(err))
-				return fmt.Errorf("%s: %w", op, err)
+				if errors.Is(err, service.ErrTimeout) {
+					log.Error("updateLibrary timeout exceeded, wait next iteration", slog.Float64("timeDelta", timeDelta.Seconds()))
+				} else {
+					log.Error("failed to update schedule", sl.Err(err))
+					return fmt.Errorf("%s: %w", op, err)
+				}
 			}
 			a.updateIndices()
 		case <-a.stopChan:
@@ -369,6 +425,10 @@ func (a *AutoDJ) addSegment(ctx context.Context) error {
 			)
 			return service.ErrSegmentIntersection
 		}
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("sch.NewSegment timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to add new segment", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -385,6 +445,10 @@ func (a *AutoDJ) getTimer(ctx context.Context) (<-chan time.Time, error) {
 
 	sch, err := a.sch.ScheduleCut(ctx, time.Now(), infinity)
 	if err != nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("sch.ScheduleCut timeout exceeded")
+			return time.After(0), service.ErrTimeout
+		}
 		log.Error("failed to get schedule cut")
 	}
 
@@ -424,6 +488,10 @@ func (a *AutoDJ) updateLibrary(ctx context.Context) error {
 
 	a.library, err = a.media.SearchMedia(ctx, models.MediaFilter{Tags: tagNames})
 	if err != nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("media.SearchMedia timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to update library", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -487,6 +555,10 @@ func (a *AutoDJ) updateProtected(ctx context.Context) error {
 	now := time.Now()
 	sch, err := a.sch.ScheduleCut(ctx, now, infinity)
 	if err != nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("sch.ScheduleCut timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to get schedule cut", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -513,6 +585,10 @@ func (a *AutoDJ) updateProtected(ctx context.Context) error {
 			}
 			return nil
 		}
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("nowPlaying timeout exceeded")
+			return service.ErrTimeout
+		}
 		log.Error("failed to get current playing segment", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -531,6 +607,10 @@ func (a *AutoDJ) updateProtected(ctx context.Context) error {
 			return nil
 		} else {
 			if err := a.sch.ClearSchedule(ctx, now); err != nil {
+				if errors.Is(err, service.ErrTimeout) {
+					log.Error("sch.ClearSchedule timeout exceeded")
+					return service.ErrTimeout
+				}
 				log.Error("failed to clear schedule", sl.Err(err))
 				return fmt.Errorf("%s: %w", op, err)
 			}
@@ -552,12 +632,20 @@ func (a *AutoDJ) updateProtected(ctx context.Context) error {
 			a.timeHorizon = s1.End()
 			if s1.Protected {
 				if err := a.sch.ClearSchedule(ctx, now); err != nil {
+					if errors.Is(err, service.ErrTimeout) {
+						log.Error("sch.ClearSchedule timeout exceeded")
+						return service.ErrTimeout
+					}
 					log.Error("failed to clear schedule", sl.Err(err))
 					return fmt.Errorf("%s: %w", op, err)
 				}
 				return nil
 			} else {
 				if err := a.sch.ClearSchedule(ctx, s1.End().Add(timeDelta)); err != nil {
+					if errors.Is(err, service.ErrTimeout) {
+						log.Error("sch.ClearSchedule timeout exceeded")
+						return service.ErrTimeout
+					}
 					log.Error("failed to clear schedule", sl.Err(err))
 					return fmt.Errorf("%s: %w", op, err)
 				}
@@ -598,6 +686,10 @@ func (a *AutoDJ) nowPlaying(ctx context.Context) (models.Segment, error) {
 	now := time.Now()
 	sch, err := a.sch.ScheduleCut(ctx, now, infinity)
 	if err != nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("sch.ScheduleCut timeout exceeded")
+			return models.Segment{}, service.ErrTimeout
+		}
 		log.Error("failed to get schedule cut", sl.Err(err))
 		return models.Segment{}, fmt.Errorf("%s: %w", op, err)
 	}
