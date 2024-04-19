@@ -89,7 +89,7 @@ func (s *Schedule) ScheduleCut(ctx context.Context, start time.Time, stop time.T
 				log.Error("schStorage.IsSegmentProtected timeout exceeded")
 				return []models.Segment{}, service.ErrTimeout
 			}
-			log.Error("fialed to check segment protection", slog.Int64("id", *segment.ID), sl.Err(err))
+			log.Error("failed to check segment protection", slog.Int64("id", *segment.ID), sl.Err(err))
 			return []models.Segment{}, fmt.Errorf("%s: %w", op, err)
 		} else {
 			segments[i].Protected = isProt

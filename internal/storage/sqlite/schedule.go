@@ -253,7 +253,7 @@ func (s *Storage) IsSegmentProtected(ctx context.Context, id int64) (bool, error
 
 	row := stmt.QueryRowContext(ctx, id)
 
-	var res int8
+	var res bool
 
 	if err := row.Scan(&res); err != nil {
 		if errors.Is(err, context.Canceled) {
@@ -262,7 +262,7 @@ func (s *Storage) IsSegmentProtected(ctx context.Context, id int64) (bool, error
 		return false, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return res == 1, nil
+	return res, nil
 }
 
 // NewLive registers new segment.
