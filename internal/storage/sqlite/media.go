@@ -113,6 +113,7 @@ func (s *Storage) UpdateMediaBasicInfo(ctx context.Context, media models.Media) 
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
+	defer stmt.Close()
 
 	if _, err := stmt.ExecContext(ctx); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {

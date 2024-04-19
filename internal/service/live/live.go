@@ -150,6 +150,17 @@ func (l *Live) Run(ctx context.Context, live models.Live) error {
 		log.Error("failed to clear space", sl.Err(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
+	ctxClearSch, cancelClearSch := context.WithTimeout(ctx, l.timeout)
+	defer cancelClearSch()
+	if err := l.sch.ClearSchedule(ctxClearSch, l.live.Start); err != nil {
+		if errors.Is(err, service.ErrTimeout) {
+			log.Error("sch.ClearSchedule timeout exceeded")
+			return service.ErrTimeout
+		}
+		log.Error("failed to clear space", sl.Err(err))
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
 	// Register segment.
 	ctxNewSeg, cancelNewSeg := context.WithTimeout(ctx, l.timeout)
 	defer cancelNewSeg()
