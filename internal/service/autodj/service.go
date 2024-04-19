@@ -163,9 +163,7 @@ func (a *AutoDJ) Run(ctx context.Context) error {
 
 dj_start:
 	// Get library with given parameters.
-	ctxUpdLib, cancelUpdLib := context.WithTimeout(ctx, a.timeout)
-	defer cancelUpdLib()
-	if err := a.updateLibrary(ctxUpdLib); err != nil {
+	if err := a.updateLibrary(ctx); err != nil {
 		if errors.Is(err, service.ErrMediaNotFound) {
 			log.Error("library is empty, stop autodj")
 			return service.ErrMediaNotFound
@@ -301,9 +299,7 @@ main_loop:
 			}
 		case <-a.mediaChanRedirect:
 			log.Debug("got media chan")
-			ctxUpdLib, cancelUpdLib := context.WithTimeout(ctx, a.timeout)
-			defer cancelUpdLib()
-			if err := a.updateLibrary(ctxUpdLib); err != nil {
+			if err := a.updateLibrary(ctx); err != nil {
 				if errors.Is(err, service.ErrMediaNotFound) {
 					log.Error("library is empty, stop autodj")
 					return service.ErrMediaNotFound

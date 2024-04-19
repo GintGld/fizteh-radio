@@ -21,13 +21,13 @@ dash:
   buffer_depth: 4s
   client_update_freq: 1s
   dash_update_freq: 1s
-  dash_horizon: 10s
+  dash_horizon: 1m
 dj:
   dj_on_start: true
   cache_file: .cache/dj.json
 live:
   delay: 5s
-  step_duration: 10s
+  step_duration: 2m
   source-type: alsa
   source: hw:1,0
   filters:
