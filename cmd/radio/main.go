@@ -72,6 +72,7 @@ func main() {
 	<-stop
 
 	httpApplication.Router.Stop()
+	httpApplication.Storage.Stop()
 	log.Info("Gracefully stopped")
 }
 

@@ -31,6 +31,8 @@ func New(storagePath string) (*Storage, error) {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
+	db.SetMaxOpenConns(1)
+
 	st := &Storage{
 		db: db,
 		tagCache: tagCacheStruct{

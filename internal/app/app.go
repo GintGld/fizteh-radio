@@ -11,7 +11,8 @@ import (
 )
 
 type App struct {
-	Router routerApp.App
+	Router  routerApp.App
+	Storage *sqlite.Storage
 }
 
 func New(
@@ -86,6 +87,7 @@ func New(
 	)
 
 	return &App{
-		Router: *routerApp,
+		Router:  *routerApp,
+		Storage: storage,
 	}
 }
