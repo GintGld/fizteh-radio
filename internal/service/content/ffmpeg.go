@@ -112,7 +112,7 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 	stopString := strconv.FormatFloat(s.StopCut.Seconds(), 'g', -1, 64)
 	durationString := strconv.FormatFloat(c.chunkLength.Seconds(), 'g', -1, 64)
 
-	cmd := exec.CommandContext(ctx,
+	cmd := exec.Command(
 		"ffmpeg",           //							call converter
 		"-hide_banner",     //							hide banner
 		"-y",               //							force rewriting file
