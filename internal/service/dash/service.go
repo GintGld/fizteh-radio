@@ -74,9 +74,35 @@ type Schedule interface {
 	Segment(ctx context.Context, id int64) (models.Segment, error)
 }
 
-// TODO: mutex and method for updating (horizon, updatefreq)
+// RunInfinitely runs dash,
+// if it returns an errror, restarts.
+func (d *Dash) RunInfinitely(ctx context.Context) {
+	const op = "Dash.RunInfinetely"
 
-// TODO: move SetSchedule, Generate to goroutines
+	log := d.log.With(
+		slog.String("op", op),
+	)
+
+	log.Info("start infinite run")
+
+inf_loop:
+	for {
+		if err := d.Run(ctx); err != nil {
+			log.Error("run failed with an error, restart", sl.Err(err))
+		} else {
+			log.Info("run exited normally, stop")
+			break inf_loop
+		}
+
+		select {
+		case <-ctx.Done():
+			break inf_loop
+		default:
+		}
+	}
+
+	log.Info("stop infinite run")
+}
 
 // Run starts dash streaming
 func (d *Dash) Run(ctx context.Context) error {
