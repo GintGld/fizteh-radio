@@ -21,7 +21,7 @@ func (s *Storage) SaveListener(ctx context.Context, listener models.Listener) (i
 
 	res, err := stmt.ExecContext(ctx, listener.Start.Unix(), listener.Stop.Unix())
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return 0, storage.ErrContextCancelled
 		}
 		return 0, fmt.Errorf("%s: %w", op, err)
@@ -46,7 +46,7 @@ func (s *Storage) Listeners(ctx context.Context, start, stop time.Time) ([]model
 
 	rows, err := stmt.QueryContext(ctx, start.Unix(), stop.Unix())
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return []models.Listener{}, storage.ErrContextCancelled
 		}
 		return []models.Listener{}, fmt.Errorf("%s: %w", op, err)
@@ -62,7 +62,7 @@ func (s *Storage) Listeners(ctx context.Context, start, stop time.Time) ([]model
 
 	for rows.Next() {
 		if err := rows.Scan(&l.ID, &startInt, &stopInt); err != nil {
-			if errors.Is(err, context.Canceled) {
+			if errors.Is(err, context.DeadlineExceeded) {
 				return []models.Listener{}, storage.ErrContextCancelled
 			}
 			return []models.Listener{}, fmt.Errorf("%s: %w", op, err)

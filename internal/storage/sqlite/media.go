@@ -33,7 +33,7 @@ func (s *Storage) AllMedia(ctx context.Context, limit, offset int) ([]models.Med
 
 	rows, err := stmt.QueryContext(ctx, limit, offset)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, storage.ErrContextCancelled
 		}
 		return nil, fmt.Errorf("%s: %w", op, err)
@@ -50,7 +50,7 @@ func (s *Storage) AllMedia(ctx context.Context, limit, offset int) ([]models.Med
 
 	for rows.Next() {
 		if err = rows.Scan(&id, &name, &author, &durationMs, &sourceID); err != nil {
-			if errors.Is(err, context.Canceled) {
+			if errors.Is(err, context.DeadlineExceeded) {
 				return nil, storage.ErrContextCancelled
 			}
 			return []models.Media{}, fmt.Errorf("%s: %w", op, err)
@@ -85,7 +85,7 @@ func (s *Storage) SaveMedia(ctx context.Context, media models.Media) (int64, err
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
 			return 0, fmt.Errorf("%s: %w", op, storage.ErrMediaExists)
 		}
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return 0, storage.ErrContextCancelled
 		}
 
@@ -115,7 +115,7 @@ func (s *Storage) UpdateMediaBasicInfo(ctx context.Context, media models.Media) 
 	}
 
 	if _, err := stmt.ExecContext(ctx); err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return storage.ErrContextCancelled
 		}
 		return fmt.Errorf("%s: %w", op, err)
@@ -135,7 +135,7 @@ func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 		if errors.Is(err, storage.ErrMediaNotFound) {
 			return models.Media{}, storage.ErrMediaNotFound
 		}
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return models.Media{}, storage.ErrContextCancelled
 		}
 		return models.Media{}, fmt.Errorf("%s: %w", op, err)
@@ -143,7 +143,7 @@ func (s *Storage) Media(ctx context.Context, id int64) (models.Media, error) {
 
 	tags, err := s.mediaSubTags(ctx, id)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return models.Media{}, storage.ErrContextCancelled
 		}
 		return models.Media{}, fmt.Errorf("%s: %w", op, err)
@@ -178,7 +178,7 @@ func (s *Storage) mediaSubBasicInfo(ctx context.Context, id int64) (models.Media
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.Media{}, fmt.Errorf("%s: %w", op, storage.ErrMediaNotFound)
 		}
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return models.Media{}, err
 		}
 		return models.Media{}, fmt.Errorf("%s: %w", op, err)
@@ -212,7 +212,7 @@ func (s *Storage) mediaSubTags(ctx context.Context, id int64) (models.TagList, e
 
 	rows, err := stmt.QueryContext(ctx, id)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return models.TagList{}, err
 		}
 		return models.TagList{}, fmt.Errorf("%s: %w", op, err)
@@ -224,7 +224,7 @@ func (s *Storage) mediaSubTags(ctx context.Context, id int64) (models.TagList, e
 
 	for rows.Next() {
 		if err := rows.Scan(&tag.ID, &tag.Name, &tag.Type.ID, &tag.Type.Name); err != nil {
-			if errors.Is(err, context.Canceled) {
+			if errors.Is(err, context.DeadlineExceeded) {
 				return models.TagList{}, err
 			}
 			return models.TagList{}, fmt.Errorf("%s: %w", op, err)
@@ -253,7 +253,7 @@ func (s *Storage) MediaTags(ctx context.Context, id int64) (models.TagList, erro
 
 	rows, err := stmt.QueryContext(ctx, id)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return models.TagList{}, storage.ErrContextCancelled
 		}
 		return models.TagList{}, fmt.Errorf("%s: %w", op, err)
@@ -265,7 +265,7 @@ func (s *Storage) MediaTags(ctx context.Context, id int64) (models.TagList, erro
 
 	for rows.Next() {
 		if err := rows.Scan(&tag.ID, &tag.Name, &tag.Type.ID, &tag.Type.Name); err != nil {
-			if errors.Is(err, context.Canceled) {
+			if errors.Is(err, context.DeadlineExceeded) {
 				return models.TagList{}, storage.ErrContextCancelled
 			}
 			return models.TagList{}, fmt.Errorf("%s: %w", op, err)
@@ -288,7 +288,7 @@ func (s *Storage) DeleteMedia(ctx context.Context, id int64) error {
 
 	res, err := stmt.ExecContext(ctx, id)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return storage.ErrContextCancelled
 		}
 		return fmt.Errorf("%s: %w", op, err)
@@ -333,7 +333,7 @@ func (s *Storage) updateTagTypes(ctx context.Context) error {
 
 	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return storage.ErrContextCancelled
 		}
 		return fmt.Errorf("%s: %w", op, err)
@@ -370,7 +370,7 @@ func (s *Storage) updateTagList(ctx context.Context) error {
 
 	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return storage.ErrContextCancelled
 		}
 		return fmt.Errorf("%s: %w", op, err)
@@ -386,7 +386,7 @@ func (s *Storage) updateTagList(ctx context.Context) error {
 rows_loop:
 	for rows.Next() {
 		if err := rows.Scan(&tag.ID, &tag.Name, &tag.Type.ID); err != nil {
-			if errors.Is(err, context.Canceled) {
+			if errors.Is(err, context.DeadlineExceeded) {
 				return storage.ErrContextCancelled
 			}
 			return fmt.Errorf("%s: %w", op, err)
@@ -428,7 +428,7 @@ func (s *Storage) SaveTag(ctx context.Context, tag models.Tag) (int64, error) {
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
 			return 0, fmt.Errorf("%s: %w", op, storage.ErrTagExists)
 		}
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return 0, storage.ErrContextCancelled
 		}
 
@@ -463,7 +463,7 @@ func (s *Storage) Tag(ctx context.Context, id int64) (models.Tag, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.Tag{}, fmt.Errorf("%s: %w", op, storage.ErrTagNotFound)
 		}
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return models.Tag{}, storage.ErrContextCancelled
 		}
 		return models.Tag{}, fmt.Errorf("%s: %w", op, err)
@@ -485,7 +485,7 @@ func (s *Storage) UpdateTag(ctx context.Context, tag models.Tag) error {
 	defer stmt.Close()
 
 	if _, err := stmt.ExecContext(ctx); err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return storage.ErrContextCancelled
 		}
 		return fmt.Errorf("%s: %w", op, err)
@@ -511,7 +511,7 @@ func (s *Storage) DeleteTag(ctx context.Context, id int64) error {
 
 	res, err := stmt.ExecContext(ctx, id)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return storage.ErrContextCancelled
 		}
 		return fmt.Errorf("%s: %w", op, err)
@@ -549,7 +549,7 @@ func (s *Storage) TagMedia(ctx context.Context, mediaId int64, tags ...models.Ta
 	defer stmt.Close()
 
 	if _, err := stmt.ExecContext(ctx); err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return storage.ErrContextCancelled
 		}
 		return fmt.Errorf("%s: %w", op, err)
@@ -580,7 +580,7 @@ func (s *Storage) MultiTagMedia(ctx context.Context, tag models.Tag, mediaIds ..
 	defer stmt.Close()
 
 	if _, err := stmt.ExecContext(ctx); err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return storage.ErrContextCancelled
 		}
 		return fmt.Errorf("%s: %w", op, err)
@@ -611,7 +611,7 @@ func (s *Storage) UntagMedia(ctx context.Context, mediaId int64, tags ...models.
 	defer stmt.Close()
 
 	if _, err := stmt.ExecContext(ctx); err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return storage.ErrContextCancelled
 		}
 		return fmt.Errorf("%s: %w", op, err)
@@ -631,7 +631,7 @@ func (s *Storage) SetTagMeta(ctx context.Context, tag models.Tag, key, val strin
 
 	res, err := stmt.ExecContext(ctx, tag.ID, key, val)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return storage.ErrContextCancelled
 		}
 		return fmt.Errorf("%s: %w", op, err)
@@ -655,7 +655,7 @@ func (s *Storage) TagMeta(ctx context.Context, tag models.Tag) (map[string]strin
 
 	row, err := stmt.QueryContext(ctx, tag.ID)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return map[string]string{}, storage.ErrContextCancelled
 		}
 		return map[string]string{}, fmt.Errorf("%s: %w", op, err)
@@ -666,7 +666,7 @@ func (s *Storage) TagMeta(ctx context.Context, tag models.Tag) (map[string]strin
 
 	for row.Next() {
 		if err := row.Scan(&key, &val); err != nil {
-			if errors.Is(err, context.Canceled) {
+			if errors.Is(err, context.DeadlineExceeded) {
 				return map[string]string{}, storage.ErrContextCancelled
 			}
 			return map[string]string{}, fmt.Errorf("%s: %w", op, err)
@@ -688,7 +688,7 @@ func (s *Storage) DelTagMeta(ctx context.Context, tag models.Tag, key string) er
 
 	res, err := stmt.ExecContext(ctx, tag.ID, key)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return storage.ErrContextCancelled
 		}
 		return fmt.Errorf("%s: %w", op, err)

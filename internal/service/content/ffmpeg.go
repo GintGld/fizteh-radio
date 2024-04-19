@@ -137,10 +137,6 @@ func (c *Content) generateDASHFiles(ctx context.Context, s models.Segment) error
 	cmd.Stderr = errorWriter
 
 	if err := cmd.Run(); err != nil {
-		if errors.Is(err, context.Canceled) {
-			log.Error("ffmpeg cmd timeout exceeded")
-			return service.ErrTimeout
-		}
 		log.Error(
 			"failed to run command",
 			slog.String("cmd", cmd.String()),

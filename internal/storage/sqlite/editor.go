@@ -28,7 +28,7 @@ func (s *Storage) SaveEditor(ctx context.Context, login string, passHash []byte)
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
 			return models.ErrEditorID, fmt.Errorf("%s: %w", op, storage.ErrEditorExists)
 		}
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return models.ErrEditorID, storage.ErrContextCancelled
 		}
 
@@ -61,7 +61,7 @@ func (s *Storage) Editor(ctx context.Context, id int64) (models.Editor, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.Editor{}, fmt.Errorf("%s: %w", op, storage.ErrEditorNotFound)
 		}
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return models.Editor{}, storage.ErrContextCancelled
 		}
 
@@ -88,7 +88,7 @@ func (s *Storage) EditorByLogin(ctx context.Context, login string) (models.Edito
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.Editor{}, fmt.Errorf("%s: %w", op, storage.ErrEditorNotFound)
 		}
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return models.Editor{}, storage.ErrContextCancelled
 		}
 
@@ -120,7 +120,7 @@ func (s *Storage) AllEditors(ctx context.Context) ([]models.Editor, error) {
 	var editor models.Editor
 	for rows.Next() {
 		if err = rows.Scan(&editor.ID, &editor.Login, &editor.PassHash); err != nil {
-			if errors.Is(err, context.Canceled) {
+			if errors.Is(err, context.DeadlineExceeded) {
 				return []models.Editor{}, storage.ErrContextCancelled
 			}
 			return editors, fmt.Errorf("%s: %w", op, err)
@@ -143,7 +143,7 @@ func (s *Storage) DeleteEditor(ctx context.Context, id int64) error {
 
 	res, err := stmt.ExecContext(ctx, id)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return storage.ErrContextCancelled
 		}
 		return fmt.Errorf("%s: %w", op, err)
