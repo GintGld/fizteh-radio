@@ -97,9 +97,6 @@ type Source interface {
 // searchMedia returns media list filtered and sorted
 // by query criteria.
 func (mediaCtr *mediaController) searchMedia(c *fiber.Ctx) error {
-	ctx, cancel := context.WithTimeout(context.Background(), mediaCtr.timeout)
-	defer cancel()
-
 	var tags []string
 	if s := c.Query("tags"); s != "" {
 		tags = strings.Split(c.Query("tags"), ",")
@@ -112,7 +109,7 @@ func (mediaCtr *mediaController) searchMedia(c *fiber.Ctx) error {
 		MaxRespLen: c.QueryInt("res_len"),
 	}
 
-	lib, err := mediaCtr.srvMedia.SearchMedia(ctx, filter)
+	lib, err := mediaCtr.srvMedia.SearchMedia(context.TODO(), filter)
 	if err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
