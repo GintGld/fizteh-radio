@@ -66,6 +66,9 @@ type AutoDJ struct {
 	timerId           int
 	// stubWasUsed       bool
 	cacheFile string
+
+	// Random number generator
+	randGen *rand.Rand
 }
 
 func New(
@@ -154,6 +157,9 @@ func (a *AutoDJ) Run(ctx context.Context) error {
 	defer a.runMutex.Unlock()
 
 	log.Info("start autodj")
+
+	// Setup random generator
+	a.randGen = rand.New(rand.NewSource(time.Now().Unix()))
 
 dj_start:
 	// Get library with given parameters.
@@ -524,9 +530,9 @@ func (a *AutoDJ) updateIndices() {
 		lastId = a.shuffledIds[len(a.shuffledIds)-1]
 	}
 
-	sl := rand.Perm(len(a.library))
+	sl := a.randGen.Perm(len(a.library))
 	for sl[len(sl)-1] == int(lastId) {
-		sl = rand.Perm(len(a.library))
+		sl = a.randGen.Perm(len(a.library))
 	}
 
 	a.shuffledIds = make([]int64, 0, len(sl))
