@@ -3,7 +3,6 @@ services:
     image: gingld/fizteh-radio:latest
     container_name: radio
     restart: always
-    privileged: true
     ports:
       - 8082:8082
     volumes:
@@ -16,7 +15,8 @@ services:
       - ./.log/radio:/radio/.log      
     env_file:
       - .env
-    network_mode: host
+    devices:
+      - /dev/snd:/dev/snd
   proxy:
     image: nginx:alpine
     restart: always
@@ -31,7 +31,6 @@ services:
       - /$SSL:/etc/ssl:ro
     depends_on:
       - radio
-    network_mode: host
 
 volumes:
   cache:
