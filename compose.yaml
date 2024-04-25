@@ -17,6 +17,7 @@ services:
       - .env
     devices:
       - /dev/snd:/dev/snd
+    network_mode: host
   proxy:
     image: nginx:alpine
     restart: always
@@ -31,6 +32,7 @@ services:
       - /$SSL:/etc/ssl:ro
     depends_on:
       - radio
+    network_mode: host
 
 volumes:
   cache:
