@@ -66,9 +66,6 @@ type AutoDJ struct {
 	timerId           int
 	// stubWasUsed       bool
 	cacheFile string
-
-	// Random number generator
-	randGen *rand.Rand
 }
 
 func New(
@@ -157,9 +154,6 @@ func (a *AutoDJ) Run(ctx context.Context) error {
 	defer a.runMutex.Unlock()
 
 	log.Info("start autodj")
-
-	// Setup random generator
-	a.randGen = rand.New(rand.NewSource(time.Now().Unix()))
 
 dj_start:
 	// Get library with given parameters.
@@ -341,12 +335,11 @@ func (a *AutoDJ) addSegment(ctx context.Context) error {
 	// conf := a.Config()
 
 	// Get next media to put in schedule.
-	var media models.Media
+	media := a.library[a.shuffledIds[a.currentId]]
+	a.currentId++
 	if int(a.currentId) >= len(a.shuffledIds) {
 		a.currentId = 0
 	}
-	media = a.library[a.currentId]
-	a.currentId++
 
 	// Create new segment
 	newSegm := models.Segment{
@@ -526,9 +519,9 @@ func (a *AutoDJ) updateIndices() {
 		lastId = a.shuffledIds[len(a.shuffledIds)-1]
 	}
 
-	sl := a.randGen.Perm(len(a.library))
+	sl := rand.Perm(len(a.library))
 	for sl[len(sl)-1] == int(lastId) {
-		sl = a.randGen.Perm(len(a.library))
+		sl = rand.Perm(len(a.library))
 	}
 
 	a.shuffledIds = make([]int64, 0, len(sl))
