@@ -20,6 +20,7 @@ services:
     network_mode: host
   proxy:
     image: nginx:alpine
+    container_name: radio-proxy
     restart: always
     ports:
       - 443:443
