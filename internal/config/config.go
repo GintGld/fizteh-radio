@@ -14,11 +14,11 @@ type Config struct {
 	StoragePath     string        `yaml:"storage_path" env-required:"true"`
 	TokenTTL        time.Duration `yaml:"token_ttl" env-default:"1h"`
 	ListenerTimeout time.Duration `yaml:"listener_timeout" env-default:"2s"`
-	HTTPServer      `yaml:"http_server"`
-	SourceStorage   `yaml:"source_storage"`
-	Dash            `yaml:"dash"`
-	DJ              `yaml:"dj"`
-	Live            `yaml:"live"`
+	HttpServer      HTTPServer    `yaml:"http_server"`
+	Source          SourceStorage `yaml:"source_storage"`
+	Dash            Dash          `yaml:"dash"`
+	DJ              DJ            `yaml:"dj"`
+	Live            Live          `yaml:"live"`
 }
 
 type HTTPServer struct {
@@ -42,9 +42,9 @@ type Dash struct {
 }
 
 type SourceStorage struct {
-	SourcePath   string `yaml:"path" env-required:"true"`
-	NestingDepth int    `yaml:"nesting_depth" env-required:"true"`
-	IdLength     int    `yaml:"id_length" env-required:"true"`
+	Addr       string        `yaml:"addr" env-required:"true"`
+	Timeout    time.Duration `yaml:"timeout" env-default:"30s"`
+	RetryCount int           `yaml:"retry" env-default:"5"`
 }
 
 type DJ struct {

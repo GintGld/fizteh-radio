@@ -11,6 +11,8 @@ import (
 	"github.com/GintGld/fizteh-radio/internal/models"
 	"github.com/GintGld/fizteh-radio/internal/storage/sqlite"
 
+	storageCli "github.com/GintGld/fizteh-radio/internal/client/storage"
+
 	authSrv "github.com/GintGld/fizteh-radio/internal/service/auth"
 	djSrv "github.com/GintGld/fizteh-radio/internal/service/autodj"
 	contentSrv "github.com/GintGld/fizteh-radio/internal/service/content"
@@ -52,9 +54,9 @@ func New(
 	rootPass []byte,
 	maxAnswerLength int,
 	tmpDir string,
-	sourceDir string,
-	nestingDepth int,
-	idLength int,
+	sourceAddr string,
+	sourceTimeout time.Duration,
+	sourceRetryCount int,
 	manPath string,
 	contentDir string,
 	chunkLength time.Duration,
@@ -80,6 +82,14 @@ func New(
 	if err != nil {
 		panic("invalid root password")
 	}
+
+	store, err := storageCli.New(
+		context.TODO(),
+		log,
+		sourceAddr,
+		sourceTimeout,
+		sourceRetryCount,
+	)
 
 	sch2dashChan := make(chan models.Segment, 1)
 	sch2djChan := make(chan struct{}, 1)
@@ -108,9 +118,7 @@ func New(
 	// Source library service
 	src := srcSrv.New(
 		log,
-		sourceDir,
-		nestingDepth,
-		idLength,
+		store,
 	)
 	// Schedule service
 	sch := schSrv.New(
