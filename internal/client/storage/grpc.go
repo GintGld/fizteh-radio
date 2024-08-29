@@ -19,6 +19,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// TODO wrap streaming into io.Reader, io.Writer correctly
+// TODO manage buffer len.
+
 const (
 	bufferLen = 1024 * 32
 )
