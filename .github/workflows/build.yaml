@@ -23,6 +23,6 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/arm/v7
+          platforms: linux/x86_64
           push: true
           tags: gingld/fizteh-radio:latest
