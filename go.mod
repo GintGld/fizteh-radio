@@ -1,6 +1,6 @@
 module github.com/GintGld/fizteh-radio
 
-go 1.21.4
+go 1.21.6
 
 require (
 	github.com/brianvoe/gofakeit/v6 v6.26.3
@@ -23,7 +23,7 @@ require (
 
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
-	github.com/GintGld/fizteh-radio-proto v0.0.1 // indirect
+	github.com/GintGld/fizteh-radio-proto v0.0.2 // indirect
 	github.com/MicahParks/keyfunc/v2 v2.1.0 // indirect
 	github.com/TylerBrock/colorjson v0.0.0-20200706003622-8a50f05110d2 // indirect
 	github.com/ajg/form v1.5.1 // indirect
@@ -64,7 +64,7 @@ require (
 	golang.org/x/sys v0.21.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240604185151-ef581f913117 // indirect
 	google.golang.org/grpc v1.66.0 // indirect
-	google.golang.org/protobuf v1.34.1 // indirect
+	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	moul.io/http2curl/v2 v2.3.0 // indirect
 	olympos.io/encoding/edn v0.0.0-20201019073823-d3554ca0b0a3 // indirect
