@@ -18,7 +18,7 @@ services:
       - /dev/snd:/dev/snd
     network_mode: host
   proxy:
-    image: nginx:alpine
+    build: .nginx/Dockerfile
     container_name: radio-proxy
     restart: always
     ports:
