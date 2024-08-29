@@ -9,9 +9,9 @@ http_server:
   idle_timeout: 60s
   tmp_dir: /radio/tmp/server
 source_storage:
-  path: ./source
-  nesting_depth: 5
-  id_length: 8
+  Addr: 93.175.6.65:8082
+  Timeout: 30s
+  RetryCount: 5
 dash:
   dash_on_start: true
   manifest_path: /radio/tmp/man/man.mpd
@@ -28,8 +28,8 @@ dj:
 live:
   delay: 5s
   step_duration: 2m
-  source-type: alsa
-  source: hw:1,0
+  source-type: flv
+  source: rtmp://localhost:1935/live
   filters:
     pan : stereo|c0<c0+c1|c1<c0+c1
     volume : 20dB
