@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/GintGld/fizteh-radio/internal/lib/logger/sl"
-	"github.com/GintGld/fizteh-radio/internal/models"
 
 	ssov1 "github.com/GintGld/fizteh-radio-proto/gen/go/storage"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
@@ -18,6 +17,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+)
+
+const (
+	bufferLen = 1024 * 32
 )
 
 type Client struct {
@@ -70,17 +73,27 @@ func (c *Client) Upload(ctx context.Context, r io.Reader) (int, error) {
 	// Open upload stream.
 	stream, err := c.api.Upload(ctx)
 	if err != nil {
+		fmt.Println("11111111111111")
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
 	// Send file.
-	if _, err := io.Copy(&models.UploadStreamer{Stream: stream}, r); err != nil {
-		return 0, fmt.Errorf("%s: %w", op, err)
+	buff := make([]byte, bufferLen)
+	for {
+		n, err := r.Read(buff)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return 0, fmt.Errorf("%s: %w", op, err)
+		}
+		stream.Send(&ssov1.UploadRequest{Chunk: buff[:n]})
 	}
 
 	// Close stream
 	resp, err := stream.CloseAndRecv()
 	if err != nil {
+		fmt.Println("ffuuuuuuuck", err)
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -105,8 +118,18 @@ func (c *Client) Download(ctx context.Context, id int, dst string) error {
 	defer destination.Close()
 
 	// Copy data to a file.
-	if _, err := io.Copy(destination, &models.DownloadStreamer{Stream: stream}); err != nil {
-		return err
+	for {
+		resp, err := stream.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return fmt.Errorf("%s: %w", op, err)
+		}
+
+		if _, err := destination.Write(resp.GetChunk()); err != nil {
+			return fmt.Errorf("%s: %w", op, err)
+		}
 	}
 
 	// Close download stream.
