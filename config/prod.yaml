@@ -9,9 +9,9 @@ http_server:
   idle_timeout: 60s
   tmp_dir: /radio/tmp/server
 source_storage:
-  Addr: 93.175.6.65:8082
-  Timeout: 30s
-  RetryCount: 5
+  addr: 93.175.6.65:8082
+  timeout: 30s
+  retryCount: 5
 dash:
   dash_on_start: true
   manifest_path: /radio/tmp/man/man.mpd
