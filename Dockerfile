@@ -21,7 +21,7 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
 RUN --mount=type=cache,target=/go/pkg/mod/ \
     go build -o migrator ./cmd/migrator
 
-FROM alpine as final
+FROM alpine AS final
 
 RUN --mount=type=cache,target=/var/cache/apk \
     apk --update add \
