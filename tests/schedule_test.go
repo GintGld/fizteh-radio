@@ -23,7 +23,7 @@ func TestCreateNewSegment(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -65,7 +65,7 @@ func TestCreateSegmentCreateIntersections(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -156,7 +156,7 @@ func TestCreateSegmentWithLive(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -221,7 +221,7 @@ func TestGetSegment(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -289,7 +289,7 @@ func TestGetProtectedSegment(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -358,7 +358,7 @@ func TestGetLiveSegment(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -444,7 +444,7 @@ func TestGetNotExistingSegment(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -466,7 +466,7 @@ func TestDeleteSegment(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -528,7 +528,7 @@ func TestDeleteNotExistingSegment(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -549,7 +549,7 @@ func TestGetScheduleCut(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -571,7 +571,7 @@ func TestClearSchedule(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 

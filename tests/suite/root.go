@@ -24,7 +24,7 @@ var (
 
 // RootLogin logins root user
 func RootLogin() (string, error) {
-	c := http.Client{Timeout: cfg.Timeout}
+	c := http.Client{Timeout: cfg.HttpServer.Timeout}
 
 	bodyReq, err := json.Marshal(map[string]string{
 		"login": "root",
@@ -35,7 +35,7 @@ func RootLogin() (string, error) {
 		return "", nil
 	}
 
-	url := "http://" + cfg.Address + "/login"
+	url := "http://" + cfg.HttpServer.Address + "/login"
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyReq))
 	if err != nil {
@@ -67,14 +67,14 @@ func RootLogin() (string, error) {
 
 // RootGetEditors gets all editors
 func RootGetEditors() ([]models.EditorOut, error) {
-	c := http.Client{Timeout: cfg.Timeout}
+	c := http.Client{Timeout: cfg.HttpServer.Timeout}
 
 	token, err := RootLogin()
 	if err != nil {
 		return []models.EditorOut{}, err
 	}
 
-	url := "http://" + cfg.Address + "/root/editors"
+	url := "http://" + cfg.HttpServer.Address + "/root/editors"
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

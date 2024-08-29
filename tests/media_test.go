@@ -40,7 +40,7 @@ func TestCreateNewMedia(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -91,7 +91,7 @@ func TestCreateMediaWithNotExistingTag(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -131,7 +131,7 @@ func TestGetMedia(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -202,7 +202,7 @@ func TestGetMediaWithoutTags(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -255,7 +255,7 @@ func TestGetNotExistingMedia(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -277,7 +277,7 @@ func TestUpdateMediaBasicInfo(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -348,7 +348,7 @@ func TestUpdateMediaTags(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -419,7 +419,7 @@ func TestUpdateMediaCreateTags(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -490,7 +490,7 @@ func TestUpdateMediaDeleteTags(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -561,7 +561,7 @@ func TestMultiTagMedia(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -628,7 +628,7 @@ func TestDeleteMedia(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -672,7 +672,7 @@ func TestDeleteNotExistingMedia(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -693,7 +693,7 @@ func TestSearchMediaWithoutQuery(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -715,7 +715,7 @@ func TestTagTypes(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -737,7 +737,7 @@ func TestNewTag(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -763,7 +763,7 @@ func TestAllTags(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -786,7 +786,7 @@ func TestGetTag(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -838,7 +838,7 @@ func TestDeleteTag(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -886,7 +886,7 @@ func TestDeleteNotExistingTag(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 

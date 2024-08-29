@@ -21,7 +21,7 @@ import (
 func TestLoginRoot(t *testing.T) {
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -73,7 +73,7 @@ func TestLoginRoot(t *testing.T) {
 func TestFailLoginRoot(t *testing.T) {
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -102,7 +102,7 @@ func TestLoginEditor(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -168,7 +168,7 @@ func TestLoginEditor(t *testing.T) {
 func TestFailLoginEditor(t *testing.T) {
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 

@@ -19,7 +19,7 @@ func TestGetEditors(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -42,7 +42,7 @@ func TestCreateNewEditor(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -68,7 +68,7 @@ func TestDoubleCreateEditor(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -109,7 +109,7 @@ func TestGetEditor(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -146,7 +146,7 @@ func TestGetNotExistingEditor(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -172,7 +172,7 @@ func TestDeleteEditor(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
@@ -212,7 +212,7 @@ func TestDeleteNotExistingEditor(t *testing.T) {
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   cfg.Address,
+		Host:   cfg.HttpServer.Address,
 	}
 	e := httpexpect.Default(t, u.String())
 
