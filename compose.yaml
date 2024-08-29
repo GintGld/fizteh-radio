@@ -18,7 +18,7 @@ services:
       - /dev/snd:/dev/snd
     network_mode: host
   proxy:
-    build: .nginx/Dockerfile
+    build: .nginx
     container_name: radio-proxy
     restart: always
     ports:
