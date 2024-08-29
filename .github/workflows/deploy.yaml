@@ -32,7 +32,7 @@ jobs:
         run: |
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no -p ${{ env.PORT }} ${{ env.HOST }} \
           "mkdir -p ${{ env.DEPLOY_DIR }} ${{ env.DEPLOY_DIR }}/.nginx ${{ env.DEPLOY_DIR }}/config && \
-          sudo rm -f ${{ env.ENV_FILE_PATH }} ${{ env.COMPOSE_ENV }} && \
+          rm -f ${{ env.ENV_FILE_PATH }} ${{ env.COMPOSE_ENV }} && \
           echo "CONFIG_PATH=/radio/prod.yaml" >> ${{ env.ENV_FILE_PATH }} && \
           echo "SECRET=${{ secrets.SECRET }}" >> ${{ env.ENV_FILE_PATH }} && \
           echo "ROOT_PASS=${{ secrets.ROOT_PASS }}" >> ${{ env.ENV_FILE_PATH }} && \
